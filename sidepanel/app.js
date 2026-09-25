@@ -32,7 +32,14 @@ function configFromUi() {
     nextSelector: $("nextSelector").value.trim(),
     maxPages: Number($("maxPages").value) || 0,
     waitMs: Number($("waitMs").value) || 1200,
-    includeFrames: $("includeFrames").checked
+    includeFrames: $("includeFrames").checked,
+    detail: {
+      enabled: $("detailEnabled").checked,
+      urlField: $("detailUrlField").value.trim() || "url",
+      rowSelector: $("detailRowSelector").value.trim(),
+      fields: parseJson($("detailFields").value || "[]", "Detail fields"),
+      waitMs: Number($("waitMs").value) || 1200
+    }
   };
 }
 
@@ -254,6 +261,23 @@ $("run").addEventListener("click", async () => {
     const result = await rpc("WS_RUN_SCRAPER", { config });
     setStatus(result.meta);
     await loadRuns(result.meta.id);
+  } catch (error) {
+    setStatus(error.message);
+  }
+});
+
+$("runBulk").addEventListener("click", async () => {
+  try {
+    const urls = $("bulkUrls").value
+      .split(/\r?\n/)
+      .map((x) => x.trim())
+      .filter(Boolean);
+    if (!urls.length) throw new Error("Add at least one URL to the bulk list");
+    const config = configFromUi();
+    setStatus("Running " + urls.length + " URLs…");
+    const result = await rpc("WS_RUN_BULK", { config, urls });
+    setStatus(result);
+    await loadRuns(result.runs?.at(-1)?.id);
   } catch (error) {
     setStatus(error.message);
   }
