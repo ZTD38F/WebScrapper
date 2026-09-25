@@ -51,6 +51,26 @@
       </div>
 
       <button id="run" class="primary">Run scraper</button>
+
+      <details>
+        <summary>Bulk URLs</summary>
+        <label>One URL per line
+          <textarea id="bulkUrls" rows="6" spellcheck="false" placeholder="https://example.com/page-1&#10;https://example.com/page-2"></textarea>
+        </label>
+        <button id="runBulk">Run all URLs</button>
+      </details>
+
+      <details>
+        <summary>Detail-page enrichment</summary>
+        <label class="check"><input id="detailEnabled" type="checkbox"> Open each row URL and enrich the row</label>
+        <div class="grid">
+          <label>URL field <input id="detailUrlField" value="url"></label>
+          <label>Detail row selector <input id="detailRowSelector" placeholder="Blank = page body"></label>
+        </div>
+        <label>Detail fields JSON
+          <textarea id="detailFields" rows="7" spellcheck="false">[]</textarea>
+        </label>
+      </details>
     </section>
 
     <section>
