@@ -100,6 +100,19 @@
     </section>
 
     <section>
+      <h2>AI browser agent</h2>
+      <p class="muted">Uses the configured AI provider and a fixed safe tool whitelist. No eval or arbitrary remote JavaScript.</p>
+      <label>Goal
+        <textarea id="agentGoal" rows="5" placeholder="Find the products on this page, scrape title, price and URL, and stop."></textarea>
+      </label>
+      <label>Max steps
+        <input id="agentMaxSteps" type="number" min="0" value="20">
+        <small>0 = continue until done or repeated-action safety stop</small>
+      </label>
+      <button id="runAgent">Run agent</button>
+    </section>
+
+    <section>
       <h2>Scheduler</h2>
       <div class="grid">
         <label>Name <input id="jobName" value="Scheduled scraper"></label>
