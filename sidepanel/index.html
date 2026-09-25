@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>WebScrapper</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <header>
+    <div>
+      <h1>WebScrapper</h1>
+      <p id="pageInfo">Loading active page…</p>
+    </div>
+    <span class="badge">local-first</span>
+  </header>
+
+  <main>
+    <section>
+      <h2>Scraper</h2>
+      <label>Start URL <input id="startUrl" type="url" placeholder="Blank = current tab"></label>
+      <div class="actions">
+        <button id="analyze">Analyze page</button>
+        <button id="aiSuggest" class="secondary">AI suggest</button>
+        <button id="screenshot" class="secondary">Screenshot</button>
+      </div>
+
+      <label>Row selector <input id="rowSelector" placeholder=".product-card"></label>
+      <label>Fields JSON
+        <textarea id="fields" rows="9" spellcheck="false">[]</textarea>
+      </label>
+
+      <div class="grid">
+        <label>Pagination
+          <select id="pagination">
+            <option value="none">None</option>
+            <option value="next">Next button</option>
+            <option value="infinite">Infinite scroll</option>
+          </select>
+        </label>
+        <label>Max pages
+          <input id="maxPages" type="number" min="0" value="0">
+          <small>0 = continue until the site stops changing</small>
+        </label>
+      </div>
+
+      <label>Next selector <input id="nextSelector" placeholder="Auto-detect when blank"></label>
+      <div class="grid">
+        <label>Wait after action, ms <input id="waitMs" type="number" min="250" value="1200"></label>
+        <label class="check"><input id="includeFrames" type="checkbox"> Include accessible iframes</label>
+      </div>
+
+      <button id="run" class="primary">Run scraper</button>
+    </section>
+
+    <section>
+      <h2>Results</h2>
+      <label>Saved run
+        <select id="runs"></select>
+      </label>
+      <div class="actions">
+        <button id="refreshRuns" class="secondary">Refresh</button>
+        <button id="exportJson" class="secondary">JSON</button>
+        <button id="exportCsv" class="secondary">CSV</button>
+        <button id="deleteRun" class="danger">Delete</button>
+      </div>
+      <p id="runMeta" class="muted"></p>
+      <div class="tableWrap"><table id="preview"></table></div>
+    </section>
+
+    <section>
+      <h2>Form filler</h2>
+      <p class="muted">Declarative fields only. Nothing is submitted automatically.</p>
+      <label>Fields JSON
+        <textarea id="formFields" rows="7" spellcheck="false">[
+  {"label":"Email","value":"user@example.com"}
+]</textarea>
+      </label>
+      <button id="fillForm">Fill current form</button>
+    </section>
+
+    <section>
+      <h2>Scheduler</h2>
+      <div class="grid">
+        <label>Name <input id="jobName" value="Scheduled scraper"></label>
+        <label>Every, minutes <input id="periodMinutes" type="number" min="0.5" step="0.5" value="60"></label>
+      </div>
+      <button id="saveJob">Save schedule</button>
+      <div id="jobs" class="list"></div>
+    </section>
+
+    <section>
+      <h2>Optional AI provider</h2>
+      <p class="muted">Any OpenAI-compatible endpoint. Leave blank to use local heuristic detection only.</p>
+      <label>Endpoint <input id="aiEndpoint" placeholder="http://127.0.0.1:11434/v1"></label>
+      <label>Model <input id="aiModel" placeholder="model-name"></label>
+      <label>API key <input id="aiKey" type="password" autocomplete="off"></label>
+      <button id="saveSettings">Save AI settings locally</button>
+    </section>
+
+    <section>
+      <h2>Status</h2>
+      <pre id="status">Ready.</pre>
+    </section>
+  </main>
+
+  <script type="module" src="./app.js"></script>
+</body>
+</html>
