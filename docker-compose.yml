@@ -1,0 +1,22 @@
+services:
+  webscrapper:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    restart: unless-stopped
+    init: true
+    ports:
+      - "127.0.0.1:8787:8787"
+    environment:
+      WS_HOST: 0.0.0.0
+      WS_PORT: 8787
+      WS_DATA_DIR: /app/data
+      WS_HEADLESS: "true"
+      WS_WORKERS: "1"
+      WS_SERVER_TOKEN: "${WS_SERVER_TOKEN:-}"
+      WS_AI_ENDPOINT: "${WS_AI_ENDPOINT:-}"
+      WS_AI_MODEL: "${WS_AI_MODEL:-}"
+      WS_AI_VISION_MODEL: "${WS_AI_VISION_MODEL:-}"
+      WS_AI_API_KEY: "${WS_AI_API_KEY:-}"
+    volumes:
+      - ./server-data:/app/data
