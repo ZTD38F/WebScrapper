@@ -1,5 +1,5 @@
 import { saveRun, listRuns, getRun, deleteRun } from "./db.js";
-import { inferFieldsWithProvider } from "./ai.js";
+import { inferFieldsWithProvider, planAgentStep } from "./ai.js";
 
 const JOBS_KEY = "ws_jobs_v1";
 const SETTINGS_KEY = "ws_settings_v1";
@@ -411,6 +411,135 @@ async function runJob(id) {
   }
 }
 
+async function saveAgentRows(tab, goal, rows, steps, stopReason) {
+  if (!rows.length) return null;
+  const id = crypto.randomUUID();
+  const now = new Date().toISOString();
+  const meta = {
+    id,
+    source: "agent",
+    createdAt: now,
+    endedAt: now,
+    startUrl: tab.url || "",
+    endUrl: tab.url || "",
+    title: tab.title || "",
+    pages: steps,
+    stopReason,
+    goal: String(goal || "")
+  };
+  await saveRun(meta, rows);
+  return { ...meta, rowCount: rows.length };
+}
+
+async function runAgent(input = {}) {
+  const goal = String(input.goal || "").trim();
+  if (!goal) fail("Agent goal is empty");
+
+  const settings = input.settings || await getSettings();
+  const maxSteps = Math.max(0, Number(input.maxSteps) || 0);
+  const tab = await activeTab();
+  if (!canScript(tab.url)) fail("Open a normal HTTP(S) page first");
+
+  const history = [];
+  const collected = [];
+  const seenRows = new Set();
+  let step = 0;
+  let lastActionKey = "";
+  let repeatedActionCount = 0;
+
+  while (maxSteps === 0 || step < maxSteps) {
+    step += 1;
+    const snapshot = await sendContent(tab.id, { type: "WS_ANALYZE" }, 0);
+    const plan = await planAgentStep({ goal, snapshot, history }, settings);
+    const action = plan.action || {};
+    const actionKey = JSON.stringify(action);
+
+    if (actionKey === lastActionKey) repeatedActionCount += 1;
+    else repeatedActionCount = 0;
+    lastActionKey = actionKey;
+
+    if (repeatedActionCount >= 3) {
+      const latest = await chrome.tabs.get(tab.id).catch(() => tab);
+      const saved = await saveAgentRows(latest, goal, collected, step, "repeated-action");
+      return {
+        done: false,
+        message: "Stopped because the planner repeated the same action.",
+        steps: step,
+        history,
+        savedRun: saved
+      };
+    }
+
+    if (action.type === "done") {
+      const latest = await chrome.tabs.get(tab.id).catch(() => tab);
+      const saved = await saveAgentRows(latest, goal, collected, step, "done");
+      return {
+        done: true,
+        message: String(action.message || "Done"),
+        steps: step,
+        history,
+        savedRun: saved
+      };
+    }
+
+    let outcome;
+
+    if (action.type === "navigate") {
+      await chrome.tabs.update(tab.id, { url: action.url });
+      await waitForTabComplete(tab.id);
+      outcome = { navigatedTo: action.url };
+    } else if (action.type === "click") {
+      const before = await sendContent(tab.id, { type: "WS_GET_META" }, 0).catch(() => null);
+      await sendContent(tab.id, { type: "WS_CLICK", selector: action.selector }, 0);
+      if (before) await waitForPageChange(tab.id, before, 600).catch(() => null);
+      else await sleep(800);
+      outcome = { clicked: action.selector };
+    } else if (action.type === "scroll") {
+      outcome = await sendContent(tab.id, { type: "WS_SCROLL_MORE" }, 0);
+      await sleep(500);
+    } else if (action.type === "fill") {
+      outcome = await sendContent(tab.id, { type: "WS_FILL_FORM", fields: action.fields || [] }, 0);
+    } else if (action.type === "scrape") {
+      const result = await sendContent(tab.id, {
+        type: "WS_SCRAPE",
+        config: {
+          rowSelector: String(action.rowSelector || ""),
+          fields: Array.isArray(action.fields) ? action.fields : []
+        }
+      }, 0);
+      let added = 0;
+      for (const row of result.rows || []) {
+        const key = stableRowKey(row);
+        if (seenRows.has(key)) continue;
+        seenRows.add(key);
+        collected.push({ ...row, _agentStep: step });
+        added += 1;
+      }
+      outcome = { scraped: result.rows?.length || 0, newRows: added, totalRows: collected.length };
+    } else {
+      fail("Unsupported agent action: " + String(action.type));
+    }
+
+    history.push({
+      step,
+      action,
+      reason: plan.reason || "",
+      outcome
+    });
+    if (history.length > 30) history.splice(0, history.length - 30);
+  }
+
+  const latest = await chrome.tabs.get(tab.id).catch(() => tab);
+  const saved = await saveAgentRows(latest, goal, collected, step, "max-steps");
+  return {
+    done: false,
+    message: "Reached the user-configured step limit.",
+    steps: step,
+    history,
+    savedRun: saved
+  };
+}
+
 async function syncAlarms() {
   const jobs = await getJobs();
   for (const job of jobs) {
@@ -464,6 +593,12 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         const settings = message.settings || await getSettings();
         return inferFieldsWithProvider(snapshot, settings);
       }
+      case "WS_RUN_AGENT":
+        return runAgent({
+          goal: message.goal,
+          maxSteps: message.maxSteps,
+          settings: message.settings
+        });
       case "WS_RUN_SCRAPER":
         return runScraper(message.config || {}, "manual");
       case "WS_RUN_BULK":
