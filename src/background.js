@@ -95,7 +95,17 @@ function normalizedConfig(input = {}) {
     nextSelector: String(input.nextSelector || "").trim(),
     maxPages: Math.max(0, Number(input.maxPages) || 0),
     waitMs: Math.max(250, Number(input.waitMs) || 1200),
-    includeFrames: Boolean(input.includeFrames)
+    includeFrames: Boolean(input.includeFrames),
+    bulkUrls: Array.isArray(input.bulkUrls)
+      ? input.bulkUrls.map((x) => String(x || "").trim()).filter(Boolean)
+      : [],
+    detail: {
+      enabled: Boolean(input.detail?.enabled),
+      urlField: String(input.detail?.urlField || "url").trim() || "url",
+      rowSelector: String(input.detail?.rowSelector || "").trim(),
+      fields: Array.isArray(input.detail?.fields) ? input.detail.fields : [],
+      waitMs: Math.max(250, Number(input.detail?.waitMs) || Number(input.waitMs) || 1200)
+    }
   };
 }
 
@@ -153,6 +163,73 @@ async function waitForPageChange(tabId, before, minimumWait) {
   }
 
   return null;
+}
+
+async function enrichDetailPages(rows, detail) {
+  if (!detail?.enabled || !Array.isArray(detail.fields) || !detail.fields.length) return rows;
+
+  let tab = null;
+  try {
+    for (let i = 0; i < rows.length; i += 1) {
+      const row = rows[i];
+      const targetUrl = String(row?.[detail.urlField] || "").trim();
+      if (!/^https?:\/\//i.test(targetUrl)) continue;
+
+      if (!tab) {
+        tab = await chrome.tabs.create({ url: targetUrl, active: false });
+      } else {
+        tab = await chrome.tabs.update(tab.id, { url: targetUrl, active: false });
+      }
+
+      await waitForTabComplete(tab.id);
+      await sleep(detail.waitMs);
+
+      const result = await sendContent(tab.id, {
+        type: "WS_SCRAPE",
+        config: {
+          rowSelector: detail.rowSelector,
+          fields: detail.fields
+        }
+      }, 0);
+
+      const first = result?.rows?.[0] || {};
+      for (const [key, value] of Object.entries(first)) {
+        if (key.startsWith("_")) continue;
+        const outputKey = Object.prototype.hasOwnProperty.call(row, key) && row[key] !== ""
+          ? "detail_" + key
+          : key;
+        row[outputKey] = value;
+      }
+      row._detailUrl = targetUrl;
+    }
+    return rows;
+  } finally {
+    if (tab?.id) await chrome.tabs.remove(tab.id).catch(() => {});
+  }
+}
+
+async function runBulk(rawConfig, urlsInput) {
+  const urls = Array.from(new Set(
+    (Array.isArray(urlsInput) ? urlsInput : [])
+      .map((x) => String(x || "").trim())
+      .filter((x) => /^https?:\/\//i.test(x))
+  ));
+
+  if (!urls.length) fail("Bulk URL list is empty");
+
+  const batchId = crypto.randomUUID();
+  const runs = [];
+  for (let i = 0; i < urls.length; i += 1) {
+    const result = await runScraper({
+      ...rawConfig,
+      startUrl: urls[i],
+      useCurrentTab: false,
+      bulkUrls: []
+    }, "bulk:" + batchId);
+    runs.push(result.meta);
+  }
+
+  return { batchId, totalUrls: urls.length, runs };
 }
 
 async function runScraper(rawConfig, source = "manual") {
@@ -234,6 +311,10 @@ async function runScraper(rawConfig, source = "manual") {
         }
         await waitForTabComplete(tab.id, 5000).catch(() => null);
       }
+    }
+
+    if (config.detail.enabled && config.detail.fields.length) {
+      await enrichDetailPages(rows, config.detail);
     }
 
     const endedAt = new Date().toISOString();
@@ -385,6 +466,8 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       }
       case "WS_RUN_SCRAPER":
         return runScraper(message.config || {}, "manual");
+      case "WS_RUN_BULK":
+        return runBulk(message.config || {}, message.urls || []);
       case "WS_LIST_RUNS":
         return listRuns();
       case "WS_GET_RUN":
