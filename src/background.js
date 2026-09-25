@@ -540,6 +540,58 @@ async function runAgent(input = {}) {
   };
 }
 
+function normalizeServerUrl(value) {
+  const raw = String(value || "").trim().replace(/\/+$/, "");
+  if (!/^https?:\/\//i.test(raw)) fail("Server URL must be HTTP(S)");
+  return raw;
+}
+
+async function serverRequest(pathname, { method = "GET", body, settings } = {}) {
+  const effective = settings || await getSettings();
+  const base = normalizeServerUrl(effective.serverUrl || "http://127.0.0.1:8787");
+  const headers = {};
+  if (body !== undefined) headers["content-type"] = "application/json";
+  if (effective.serverToken) headers.authorization = "Bearer " + effective.serverToken;
+
+  const response = await fetch(base + pathname, {
+    method,
+    headers,
+    body: body === undefined ? undefined : JSON.stringify(body)
+  });
+  const text = await response.text();
+  let data;
+  try { data = text ? JSON.parse(text) : null; } catch { data = text; }
+  if (!response.ok) {
+    const message = data?.error || (typeof data === "string" ? data : "HTTP " + response.status);
+    fail("WebScrapper Server: " + message);
+  }
+  return data;
+}
+
+async function remotePayload(rawConfig, options = {}) {
+  const config = normalizedConfig(rawConfig);
+  let url = config.startUrl;
+  if (!url) {
+    const tab = await activeTab();
+    url = tab.url || "";
+  }
+  if (!/^https?:\/\//i.test(url)) fail("Remote scraper needs an HTTP(S) start URL");
+
+  return {
+    url,
+    profileId: String(options.profileId || "default"),
+    rowSelector: config.rowSelector,
+    fields: config.fields,
+    pagination: config.pagination,
+    nextSelector: config.nextSelector,
+    maxPages: config.maxPages,
+    waitMs: config.waitMs,
+    screenshot: Boolean(options.screenshot),
+    vision: Boolean(options.vision),
+    detail: config.detail
+  };
+}
+
 async function syncAlarms() {
   const jobs = await getJobs();
   for (const job of jobs) {
@@ -623,6 +675,38 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         return getSettings();
       case "WS_SAVE_SETTINGS":
         return putSettings(message.settings || {});
+      case "WS_SERVER_HEALTH":
+        return serverRequest("/health", { settings: message.settings });
+      case "WS_SERVER_ENQUEUE": {
+        const payload = await remotePayload(message.config || {}, message.options || {});
+        return serverRequest("/v1/jobs", {
+          method: "POST",
+          body: { type: "scrape", payload, maxAttempts: message.maxAttempts || 3 },
+          settings: message.settings
+        });
+      }
+      case "WS_SERVER_GET_JOB":
+        return serverRequest("/v1/jobs/" + encodeURIComponent(message.id), { settings: message.settings });
+      case "WS_SERVER_LIST_JOBS":
+        return serverRequest("/v1/jobs?limit=" + encodeURIComponent(message.limit || 50), { settings: message.settings });
+      case "WS_SERVER_CANCEL_JOB":
+        return serverRequest("/v1/jobs/" + encodeURIComponent(message.id) + "/cancel", {
+          method: "POST",
+          settings: message.settings
+        });
+      case "WS_SERVER_SCHEDULE": {
+        const payload = await remotePayload(message.config || {}, message.options || {});
+        return serverRequest("/v1/schedules", {
+          method: "POST",
+          body: {
+            name: message.name || "Scheduled scraper",
+            intervalSeconds: Math.max(1, Number(message.intervalSeconds) || 3600),
+            enabled: true,
+            payload
+          },
+          settings: message.settings
+        });
+      }
       case "WS_TAKE_SCREENSHOT": {
         const tab = await activeTab();
         return chrome.tabs.captureVisibleTab(tab.windowId, { format: "png" });
