@@ -8,7 +8,7 @@ permissions:
   contents: read
 
 jobs:
-  static:
+  extension-static:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -16,3 +16,41 @@ jobs:
         with:
           node-version: 22
       - run: npm run check
+
+  server-smoke:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install --no-audit --no-fund
+      - run: npm run check
+      - name: Start API and verify health
+        env:
+          WS_HOST: 127.0.0.1
+          WS_PORT: 8799
+          WS_DATA_DIR: ${{ runner.temp }}/webscrapper-data
+          WS_HEADLESS: "true"
+        run: |
+          node src/server.js >server.log 2>&1 &
+          PID=$!
+          cleanup() {
+            kill "$PID" 2>/dev/null || true
+            wait "$PID" 2>/dev/null || true
+          }
+          trap cleanup EXIT
+
+          for i in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:8799/health >health.json; then
+              cat health.json
+              exit 0
+            fi
+            sleep 1
+          done
+
+          cat server.log
+          exit 1
