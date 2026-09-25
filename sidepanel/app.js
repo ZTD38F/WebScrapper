@@ -338,6 +338,25 @@ $("fillForm").addEventListener("click", async () => {
   }
 });
 
+$("runAgent").addEventListener("click", async () => {
+  try {
+    const goal = $("agentGoal").value.trim();
+    if (!goal) throw new Error("Enter an agent goal");
+    const settings = settingsFromUi();
+    await rpc("WS_SAVE_SETTINGS", { settings });
+    setStatus("Agent is working…");
+    const result = await rpc("WS_RUN_AGENT", {
+      goal,
+      maxSteps: Number($("agentMaxSteps").value) || 0,
+      settings
+    });
+    setStatus(result);
+    if (result.savedRun?.id) await loadRuns(result.savedRun.id);
+  } catch (error) {
+    setStatus(error.message);
+  }
+});
+
 $("saveJob").addEventListener("click", async () => {
   try {
     const config = configFromUi();
