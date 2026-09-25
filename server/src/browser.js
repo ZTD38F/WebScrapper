@@ -17,11 +17,12 @@ async function acquireProfileLock(id) {
   const previous = profileLocks.get(id) || Promise.resolve();
   let release;
   const current = new Promise((resolve) => { release = resolve; });
-  profileLocks.set(id, previous.then(() => current));
+  const chain = previous.then(() => current);
+  profileLocks.set(id, chain);
   await previous;
   return () => {
     release();
-    if (profileLocks.get(id) === current) profileLocks.delete(id);
+    if (profileLocks.get(id) === chain) profileLocks.delete(id);
   };
 }
 
