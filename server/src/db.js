@@ -204,7 +204,7 @@ export function isJobCancelled(id) {
 
 export function createSchedule({ name, intervalSeconds, payload, enabled = true, nextRunAt, id = crypto.randomUUID() }) {
   const now = nowIso();
-  const interval = Math.max(60, Math.floor(Number(intervalSeconds) || 3600));
+  const interval = Math.max(1, Math.floor(Number(intervalSeconds) || 3600));
   const next = nextRunAt || new Date(Date.now() + interval * 1000).toISOString();
   db.prepare(`
     INSERT INTO schedules (
