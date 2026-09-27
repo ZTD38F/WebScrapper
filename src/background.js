@@ -1,4 +1,4 @@
-import { saveRun, listRuns, getRun, deleteRun } from "./db.js";
+import { saveRun, createRun, listRuns, getRun, updateRun, deleteRun } from "./db.js";
 import { inferFieldsWithProvider, planAgentStep } from "./ai.js";
 
 const JOBS_KEY = "ws_jobs_v1";
@@ -655,13 +655,36 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         return runScraper(message.config || {}, "manual");
       case "WS_RUN_BULK":
         return runBulk(message.config || {}, message.urls || []);
+      case "WS_CREATE_RUN":
+        return createRun(message.meta || {}, message.rows || []);
       case "WS_LIST_RUNS":
         return listRuns();
       case "WS_GET_RUN":
         return getRun(message.id);
+      case "WS_UPDATE_RUN":
+        return updateRun(message.id, message.patch || {});
       case "WS_DELETE_RUN":
         await deleteRun(message.id);
         return true;
+      case "WS_CRUD": {
+        const action = String(message.action || "").toLowerCase();
+        if (action === "create") {
+          return createRun(message.meta || {}, message.rows || []);
+        }
+        if (action === "read") {
+          return message.id ? getRun(message.id) : listRuns();
+        }
+        if (action === "update") {
+          if (!message.id) throw new Error("WS_CRUD update requires id");
+          return updateRun(message.id, message.patch || {});
+        }
+        if (action === "delete") {
+          if (!message.id) throw new Error("WS_CRUD delete requires id");
+          await deleteRun(message.id);
+          return true;
+        }
+        throw new Error("WS_CRUD action must be create, read, update, or delete");
+      }
       case "WS_LIST_JOBS":
         return getJobs();
       case "WS_SAVE_JOB":
