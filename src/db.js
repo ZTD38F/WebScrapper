@@ -27,21 +27,50 @@ function waitTransaction(tx) {
   });
 }
 
+async function rowKeysForRun(db, id) {
+  const tx = db.transaction("rows", "readonly");
+  const request = tx.objectStore("rows").index("runId").getAllKeys(IDBKeyRange.only(id));
+  const keys = await new Promise((resolve, reject) => {
+    request.onsuccess = () => resolve(request.result || []);
+    request.onerror = () => reject(request.error);
+  });
+  await waitTransaction(tx);
+  return keys;
+}
+
 export async function saveRun(meta, rows) {
+  if (!meta?.id) throw new Error("Run id is required");
+  const safeRows = Array.isArray(rows) ? rows : [];
   const db = await openDb();
+  const oldKeys = await rowKeysForRun(db, meta.id);
   const tx = db.transaction(["runs", "rows"], "readwrite");
-  tx.objectStore("runs").put({ ...meta, rowCount: rows.length });
+  tx.objectStore("runs").put({ ...meta, rowCount: safeRows.length });
   const rowStore = tx.objectStore("rows");
-  for (let i = 0; i < rows.length; i += 1) {
+  for (const key of oldKeys) rowStore.delete(key);
+  for (let i = 0; i < safeRows.length; i += 1) {
     rowStore.put({
       key: meta.id + ":" + String(i).padStart(12, "0"),
       runId: meta.id,
       index: i,
-      value: rows[i]
+      value: safeRows[i]
     });
   }
   await waitTransaction(tx);
   db.close();
+}
+
+export async function createRun(meta = {}, rows = []) {
+  const id = String(meta.id || crypto.randomUUID());
+  const existing = await getRun(id);
+  if (existing.meta) throw new Error("Run already exists: " + id);
+  const now = new Date().toISOString();
+  await saveRun({
+    ...meta,
+    id,
+    createdAt: meta.createdAt || now,
+    updatedAt: meta.updatedAt || now
+  }, rows);
+  return getRun(id);
 }
 
 export async function listRuns() {
@@ -52,6 +81,7 @@ export async function listRuns() {
     request.onsuccess = () => resolve(request.result || []);
     request.onerror = () => reject(request.error);
   });
+  await waitTransaction(tx);
   db.close();
   return runs.sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
 }
@@ -74,9 +104,26 @@ export async function getRun(id) {
     })
   ]);
 
+  await waitTransaction(tx);
   db.close();
   storedRows.sort((a, b) => a.index - b.index);
   return { meta, rows: storedRows.map((entry) => entry.value) };
+}
+
+export async function updateRun(id, patch = {}) {
+  const current = await getRun(id);
+  if (!current.meta) throw new Error("Run not found: " + id);
+  const metaPatch = patch.meta && typeof patch.meta === "object" ? patch.meta : {};
+  const rows = Array.isArray(patch.rows) ? patch.rows : current.rows;
+  const nextMeta = {
+    ...current.meta,
+    ...metaPatch,
+    id,
+    createdAt: current.meta.createdAt,
+    updatedAt: new Date().toISOString()
+  };
+  await saveRun(nextMeta, rows);
+  return getRun(id);
 }
 
 export async function deleteRun(id) {
@@ -93,4 +140,5 @@ export async function deleteRun(id) {
   };
   await waitTransaction(tx);
   db.close();
+  return true;
 }
