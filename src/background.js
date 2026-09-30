@@ -673,8 +673,21 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       }
       case "WS_ANALYZE_ACTIVE":
         return analyzeActive();
-      case "WS_PREVIEW_ACTIVE":
-        return analyzeActive();
+      case "WS_PREVIEW_ACTIVE": {
+        const tab = await activeTab();
+        const config = message.config || {};
+        const result = await sendContent(tab.id, {
+          type: "WS_SCRAPE",
+          config: {
+            rowSelector: String(config.rowSelector || ""),
+            fields: Array.isArray(config.fields) ? config.fields : []
+          }
+        }, 0);
+        return {
+          rows: Array.isArray(result?.rows) ? result.rows.slice(0, 12) : [],
+          fields: Array.isArray(result?.fields) ? result.fields : []
+        };
+      }
       case "WS_AI_SUGGEST": {
         const tab = await activeTab();
         const snapshot = await sendContent(tab.id, { type: "WS_ANALYZE" }, 0);
