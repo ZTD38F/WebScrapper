@@ -17,9 +17,16 @@ function canScript(url) {
 }
 
 async function activeTab() {
-  const tabs = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
-  const tab = tabs[0];
-  if (!tab?.id) fail("No active tab");
+  const active = (await chrome.tabs.query({ active: true, lastFocusedWindow: true }))[0];
+  if (active?.id && canScript(active.url)) return active;
+
+  const tabs = await chrome.tabs.query({ lastFocusedWindow: true });
+  const candidates = tabs
+    .filter((tab) => tab?.id && canScript(tab.url))
+    .sort((a, b) => Number(b.lastAccessed || 0) - Number(a.lastAccessed || 0));
+
+  const tab = candidates[0];
+  if (!tab?.id) fail("Open a normal HTTP(S) page first");
   return tab;
 }
 
@@ -58,6 +65,35 @@ async function sendContent(tabId, message, frameId = 0) {
   const response = await chrome.tabs.sendMessage(tabId, message, { frameId });
   if (!response?.ok) fail(response?.error || "Content command failed");
   return response.data;
+}
+
+async function analyzeActive() {
+  const tab = await activeTab();
+  const snapshot = await sendContent(tab.id, { type: "WS_ANALYZE" }, 0);
+  const schema = snapshot?.auto || { rowSelector: "", fields: [] };
+  let preview = { rows: [], fields: schema.fields || [] };
+
+  try {
+    const result = await sendContent(tab.id, {
+      type: "WS_SCRAPE",
+      config: {
+        rowSelector: schema.rowSelector || "",
+        fields: Array.isArray(schema.fields) ? schema.fields : []
+      }
+    }, 0);
+    preview = {
+      rows: Array.isArray(result?.rows) ? result.rows.slice(0, 8) : [],
+      fields: Array.isArray(result?.fields) ? result.fields : (schema.fields || [])
+    };
+  } catch (_) {}
+
+  return {
+    ...snapshot,
+    tabId: tab.id,
+    tabTitle: tab.title || snapshot?.title || "",
+    tabUrl: tab.url || snapshot?.url || "",
+    preview
+  };
 }
 
 async function allFrameIds(tabId) {
@@ -635,10 +671,10 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         const tab = await activeTab();
         return { tabId: tab.id, url: tab.url || "", title: tab.title || "" };
       }
-      case "WS_ANALYZE_ACTIVE": {
-        const tab = await activeTab();
-        return sendContent(tab.id, { type: "WS_ANALYZE" }, 0);
-      }
+      case "WS_ANALYZE_ACTIVE":
+        return analyzeActive();
+      case "WS_PREVIEW_ACTIVE":
+        return analyzeActive();
       case "WS_AI_SUGGEST": {
         const tab = await activeTab();
         const snapshot = await sendContent(tab.id, { type: "WS_ANALYZE" }, 0);
