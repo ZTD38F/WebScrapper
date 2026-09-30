@@ -126,13 +126,18 @@ async function detectSchema(page) {
     };
 
     const title = card.querySelector("h1,h2,h3,h4,[role=heading],strong,b");
-    if (title) add("title", title, "text");
-    const link = card.querySelector("a[href]");
-    if (link) {
-      if (!title && clean(link.innerText)) add("title", link, "text");
-      add("url", link, "href");
+    const link = card.matches("a[href]") ? card : card.querySelector("a[href]");
+    const image = card.matches("img[src],img[data-src]") ? card : card.querySelector("img[src],img[data-src]");
+
+    if (!title && image && clean(image.alt).length >= 3) {
+      fields.push({ name: "title", selector: relative(card, image), attribute: "alt" });
+    } else if (title && clean(title.innerText)) {
+      add("title", title, "text");
+    } else if (link && clean(link.innerText).length >= 2 && clean(link.innerText).length <= 180) {
+      add("title", link, "text");
     }
-    const image = card.querySelector("img[src],img[data-src]");
+
+    if (link) add("url", link, "href");
     if (image) add("image", image, "src");
 
     const priceRx = /(?:€|\$|£|¥|₹|₽|USD|EUR|GBP)\s*\d|\d[\d\s.,]*\s*(?:€|\$|£|¥|₹|₽|USD|EUR|GBP)/i;
@@ -195,7 +200,7 @@ async function findNextSelector(page) {
     };
     const direct = document.querySelector("a[rel=next]");
     if (direct && visible(direct)) return "a[rel=next]";
-    const rx = /^(next|next page|more|load more|continue|›|»|→|след|далее|nākam)/i;
+    const rx = /^(next|next page|more|load more|show more|continue|›|»|→|след(?:ующая|ующий)?|далее|показать (?:ещ[её]|больше)|nākam(?:ais|ā)?|rādīt vairāk|vairāk)/i;
     const candidates = Array.from(document.querySelectorAll("a,button,[role=button]")).filter(visible);
     for (const el of candidates) {
       const label = String(el.getAttribute("aria-label") || el.innerText || "").replace(/\s+/g, " ").trim();
