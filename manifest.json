@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "WebScrapper Agent",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Local-first web scraping and browser automation without subscriptions or artificial usage caps.",
   "permissions": [
     "activeTab",
