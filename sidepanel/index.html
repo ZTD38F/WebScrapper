@@ -3,137 +3,257 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
   <title>WebScrapper</title>
   <link rel="stylesheet" href="./styles.css">
 </head>
 <body>
-  <header>
-    <div>
-      <h1>WebScrapper</h1>
-      <p id="pageInfo">Loading active page…</p>
+  <header class="topbar">
+    <div class="brand">
+      <div class="brandMark" aria-hidden="true">W</div>
+      <div>
+        <h1>WebScrapper</h1>
+        <p>AI web scraper</p>
+      </div>
     </div>
-    <span class="badge">local-first</span>
+    <button id="refreshPage" class="iconButton" title="Analyze current page" aria-label="Analyze current page">↻</button>
   </header>
 
   <main>
-    <section>
-      <h2>Scraper</h2>
-      <label>Start URL <input id="startUrl" type="url" placeholder="Blank = current tab"></label>
-      <div class="actions">
-        <button id="analyze">Analyze page</button>
-        <button id="aiSuggest" class="secondary">AI suggest</button>
-        <button id="screenshot" class="secondary">Screenshot</button>
+    <section class="quickStart">
+      <div class="sectionEyebrow">Quick Start</div>
+
+      <div class="currentTabCard">
+        <div class="pageIcon" aria-hidden="true">⌁</div>
+        <div class="pageIdentity">
+          <strong id="pageTitle">Finding current tab…</strong>
+          <span id="pageUrl">Open a normal webpage to begin</span>
+        </div>
+        <span id="pageState" class="statePill">Analyzing</span>
       </div>
 
-      <label>Row selector <input id="rowSelector" placeholder=".product-card"></label>
-      <label>Fields JSON
-        <textarea id="fields" rows="9" spellcheck="false">[]</textarea>
-      </label>
+      <div id="analysisCard" class="analysisCard">
+        <div class="analysisHeadline">
+          <div>
+            <strong id="detectedSummary">Analyzing page…</strong>
+            <p id="paginationText">WebScrapper will detect the list and useful columns automatically.</p>
+          </div>
+          <button id="customizeExtraction" class="ghostButton">Customize</button>
+        </div>
 
-      <div class="grid">
+        <div id="fieldChips" class="fieldChips" aria-live="polite"></div>
+
+        <label id="paginationQuick" class="toggleRow hidden">
+          <input id="followPages" type="checkbox">
+          <span>
+            <strong>Continue through pages</strong>
+            <small id="paginationHint">Next / Load More detected</small>
+          </span>
+        </label>
+      </div>
+
+      <div class="primaryActions">
+        <button id="run" class="primaryButton" disabled>
+          <span aria-hidden="true">✦</span>
+          <span>1-Click Extract</span>
+        </button>
+        <button id="screenshot" class="squareButton" title="Save screenshot" aria-label="Save screenshot">▣</button>
+      </div>
+
+      <div id="progressCard" class="progressCard hidden">
+        <div class="progressTop">
+          <strong id="progressTitle">Extracting…</strong>
+          <span id="progressValue">Working</span>
+        </div>
+        <div class="progressTrack"><div id="progressBar" class="progressBar"></div></div>
+        <p id="progressText">WebScrapper is collecting rows from the page.</p>
+      </div>
+    </section>
+
+    <section id="customizer" class="panel hidden">
+      <div class="panelHeader">
+        <div>
+          <div class="sectionEyebrow">Customize extraction</div>
+          <h2>Columns</h2>
+        </div>
+        <button id="reanalyze" class="ghostButton">Detect again</button>
+      </div>
+
+      <p class="helperText">Rename, remove, or change a detected column. Selectors stay hidden unless you open Advanced.</p>
+      <div id="fieldsEditor" class="fieldsEditor"></div>
+      <button id="addField" class="addButton">+ Add column</button>
+
+      <div class="previewHeader">
+        <strong>Preview</strong>
+        <span id="previewCount">0 rows</span>
+      </div>
+      <div class="tableWrap previewWrap"><table id="previewTable"></table></div>
+    </section>
+
+    <section id="resultsPanel" class="panel">
+      <div class="panelHeader">
+        <div>
+          <div class="sectionEyebrow">Results</div>
+          <h2>Recent extraction</h2>
+        </div>
+        <select id="runs" class="compactSelect" aria-label="Saved run"></select>
+      </div>
+
+      <p id="runMeta" class="helperText">No saved runs yet.</p>
+      <div class="tableWrap resultWrap"><table id="resultsTable"></table></div>
+
+      <div class="resultActions">
+        <button id="exportCsv" class="secondaryButton">Export CSV</button>
+        <button id="exportJson" class="secondaryButton">JSON</button>
+        <button id="refreshRuns" class="iconButton" title="Refresh results" aria-label="Refresh results">↻</button>
+        <button id="deleteRun" class="iconButton dangerText" title="Delete run" aria-label="Delete run">⌫</button>
+      </div>
+    </section>
+
+    <section class="toolsSection">
+      <div class="sectionEyebrow">Customize Your Own</div>
+
+      <details class="toolCard">
+        <summary>
+          <span class="toolIcon">◎</span>
+          <span><strong>AI Web Scraper</strong><small>Give the browser agent a goal</small></span>
+          <span class="chevron">›</span>
+        </summary>
+        <div class="toolBody">
+          <label>Goal
+            <textarea id="agentGoal" rows="4" placeholder="Find the products on this page and collect title, price and URL."></textarea>
+          </label>
+          <label class="advancedInline">Max steps <input id="agentMaxSteps" type="number" min="0" value="20"></label>
+          <button id="runAgent" class="secondaryButton full">Run AI agent</button>
+        </div>
+      </details>
+
+      <details class="toolCard">
+        <summary>
+          <span class="toolIcon">↗</span>
+          <span><strong>Bulk URLs</strong><small>Extract the same fields from many pages</small></span>
+          <span class="chevron">›</span>
+        </summary>
+        <div class="toolBody">
+          <label>One URL per line
+            <textarea id="bulkUrls" rows="5" placeholder="https://example.com/1&#10;https://example.com/2"></textarea>
+          </label>
+          <button id="runBulk" class="secondaryButton full">Extract all URLs</button>
+        </div>
+      </details>
+
+      <details class="toolCard">
+        <summary>
+          <span class="toolIcon">◷</span>
+          <span><strong>Scheduled Task</strong><small>Run the current scraper automatically</small></span>
+          <span class="chevron">›</span>
+        </summary>
+        <div class="toolBody">
+          <div class="twoCol">
+            <label>Name <input id="jobName" value="Scheduled scraper"></label>
+            <label>Every, minutes <input id="periodMinutes" type="number" min="0.5" step="0.5" value="60"></label>
+          </div>
+          <button id="saveJob" class="secondaryButton full">Save schedule</button>
+          <div id="jobs" class="list"></div>
+        </div>
+      </details>
+
+      <details class="toolCard">
+        <summary>
+          <span class="toolIcon">⌨</span>
+          <span><strong>Form Filler</strong><small>Prepare fields without submitting</small></span>
+          <span class="chevron">›</span>
+        </summary>
+        <div class="toolBody">
+          <label>Fields
+            <textarea id="formFields" rows="5">[
+  {"label":"Email","value":"user@example.com"}
+]</textarea>
+          </label>
+          <button id="fillForm" class="secondaryButton full">Fill current form</button>
+        </div>
+      </details>
+
+      <details class="toolCard">
+        <summary>
+          <span class="toolIcon">☁</span>
+          <span><strong>24/7 Self-hosted</strong><small>Persistent profiles, long jobs and server schedules</small></span>
+          <span class="chevron">›</span>
+        </summary>
+        <div class="toolBody">
+          <label class="toggleRow serverToggle">
+            <input id="useServer" type="checkbox">
+            <span><strong>Use server for 1-Click Extract</strong><small>Local browser remains the default.</small></span>
+          </label>
+          <label>Server URL <input id="serverUrl" placeholder="http://127.0.0.1:8787"></label>
+          <label>Server token <input id="serverToken" type="password" autocomplete="off" placeholder="Optional on localhost"></label>
+          <div class="twoCol">
+            <label>Profile <input id="profileId" value="default"></label>
+            <label class="toggleRow compactToggle"><input id="remoteScreenshot" type="checkbox"><span>Save screenshot</span></label>
+          </div>
+          <label class="toggleRow compactToggle"><input id="remoteVision" type="checkbox"><span>Use configured vision model</span></label>
+          <div class="inlineActions">
+            <button id="serverHealth" class="secondaryButton">Test server</button>
+            <button id="runRemote" class="secondaryButton">Run on server</button>
+          </div>
+          <p id="serverStatus" class="helperText">Not tested.</p>
+        </div>
+      </details>
+
+      <button id="viewAllTools" class="viewAllButton">Advanced settings</button>
+    </section>
+
+    <section id="advancedPanel" class="panel hidden">
+      <div class="panelHeader">
+        <div>
+          <div class="sectionEyebrow">Advanced</div>
+          <h2>Technical controls</h2>
+        </div>
+        <button id="closeAdvanced" class="ghostButton">Done</button>
+      </div>
+
+      <label>Start URL <input id="startUrl" type="url" placeholder="Blank = current tab"></label>
+      <label>Row selector <input id="rowSelector" placeholder=".product-card"></label>
+      <label>Raw fields JSON <textarea id="fields" rows="8" spellcheck="false">[]</textarea></label>
+
+      <div class="twoCol">
         <label>Pagination
           <select id="pagination">
             <option value="none">None</option>
-            <option value="next">Next button</option>
+            <option value="next">Next / Load More</option>
             <option value="infinite">Infinite scroll</option>
           </select>
         </label>
-        <label>Max pages
-          <input id="maxPages" type="number" min="0" value="0">
-          <small>0 = continue until the site stops changing</small>
-        </label>
+        <label>Max pages <input id="maxPages" type="number" min="0" value="0"></label>
       </div>
-
       <label>Next selector <input id="nextSelector" placeholder="Auto-detect when blank"></label>
-      <div class="grid">
+      <div class="twoCol">
         <label>Wait after action, ms <input id="waitMs" type="number" min="250" value="1200"></label>
-        <label class="check"><input id="includeFrames" type="checkbox"> Include accessible iframes</label>
+        <label class="toggleRow compactToggle"><input id="includeFrames" type="checkbox"><span>Include iframes</span></label>
       </div>
 
-      <button id="run" class="primary">Run scraper</button>
-
-      <details>
-        <summary>Bulk URLs</summary>
-        <label>One URL per line
-          <textarea id="bulkUrls" rows="6" spellcheck="false" placeholder="https://example.com/page-1&#10;https://example.com/page-2"></textarea>
-        </label>
-        <button id="runBulk">Run all URLs</button>
-      </details>
-
-      <details>
+      <details class="advancedGroup">
         <summary>Detail-page enrichment</summary>
-        <label class="check"><input id="detailEnabled" type="checkbox"> Open each row URL and enrich the row</label>
-        <div class="grid">
+        <label class="toggleRow compactToggle"><input id="detailEnabled" type="checkbox"><span>Open each row URL</span></label>
+        <div class="twoCol">
           <label>URL field <input id="detailUrlField" value="url"></label>
-          <label>Detail row selector <input id="detailRowSelector" placeholder="Blank = page body"></label>
+          <label>Detail row selector <input id="detailRowSelector"></label>
         </div>
-        <label>Detail fields JSON
-          <textarea id="detailFields" rows="7" spellcheck="false">[]</textarea>
-        </label>
+        <label>Detail fields JSON <textarea id="detailFields" rows="6">[]</textarea></label>
       </details>
-    </section>
 
-    <section>
-      <h2>Results</h2>
-      <label>Saved run
-        <select id="runs"></select>
-      </label>
-      <div class="actions">
-        <button id="refreshRuns" class="secondary">Refresh</button>
-        <button id="exportJson" class="secondary">JSON</button>
-        <button id="exportCsv" class="secondary">CSV</button>
-        <button id="deleteRun" class="danger">Delete</button>
+      <details class="advancedGroup">
+        <summary>Optional AI provider</summary>
+        <label>Endpoint <input id="aiEndpoint" placeholder="http://127.0.0.1:11434/v1"></label>
+        <label>Model <input id="aiModel" placeholder="model-name"></label>
+        <label>API key <input id="aiKey" type="password" autocomplete="off"></label>
+      </details>
+
+      <div class="inlineActions">
+        <button id="aiSuggest" class="secondaryButton">AI suggest fields</button>
+        <button id="saveSettings" class="secondaryButton">Save settings</button>
       </div>
-      <p id="runMeta" class="muted"></p>
-      <div class="tableWrap"><table id="preview"></table></div>
-    </section>
-
-    <section>
-      <h2>Form filler</h2>
-      <p class="muted">Declarative fields only. Nothing is submitted automatically.</p>
-      <label>Fields JSON
-        <textarea id="formFields" rows="7" spellcheck="false">[
-  {"label":"Email","value":"user@example.com"}
-]</textarea>
-      </label>
-      <button id="fillForm">Fill current form</button>
-    </section>
-
-    <section>
-      <h2>AI browser agent</h2>
-      <p class="muted">Uses the configured AI provider and a fixed safe tool whitelist. No eval or arbitrary remote JavaScript.</p>
-      <label>Goal
-        <textarea id="agentGoal" rows="5" placeholder="Find the products on this page, scrape title, price and URL, and stop."></textarea>
-      </label>
-      <label>Max steps
-        <input id="agentMaxSteps" type="number" min="0" value="20">
-        <small>0 = continue until done or repeated-action safety stop</small>
-      </label>
-      <button id="runAgent">Run agent</button>
-    </section>
-
-    <section>
-      <h2>Scheduler</h2>
-      <div class="grid">
-        <label>Name <input id="jobName" value="Scheduled scraper"></label>
-        <label>Every, minutes <input id="periodMinutes" type="number" min="0.5" step="0.5" value="60"></label>
-      </div>
-      <button id="saveJob">Save schedule</button>
-      <div id="jobs" class="list"></div>
-    </section>
-
-    <section>
-      <h2>Optional AI provider</h2>
-      <p class="muted">Any OpenAI-compatible endpoint. Leave blank to use local heuristic detection only.</p>
-      <label>Endpoint <input id="aiEndpoint" placeholder="http://127.0.0.1:11434/v1"></label>
-      <label>Model <input id="aiModel" placeholder="model-name"></label>
-      <label>API key <input id="aiKey" type="password" autocomplete="off"></label>
-      <button id="saveSettings">Save AI settings locally</button>
-    </section>
-
-    <section>
-      <h2>Status</h2>
-      <pre id="status">Ready.</pre>
+      <pre id="status" class="statusBox">Ready.</pre>
     </section>
   </main>
 
