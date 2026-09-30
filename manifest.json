@@ -14,7 +14,9 @@
     "downloads",
     "webNavigation"
   ],
-  "host_permissions": ["<all_urls>"],
+  "host_permissions": [
+    "<all_urls>"
+  ],
   "background": {
     "service_worker": "src/background.js",
     "type": "module"
@@ -27,8 +29,12 @@
   },
   "content_scripts": [
     {
-      "matches": ["<all_urls>"],
-      "js": ["src/content.js"],
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "src/content.js"
+      ],
       "run_at": "document_idle",
       "all_frames": true
     }
@@ -40,5 +46,6 @@
       },
       "description": "Open WebScrapper side panel"
     }
-  }
+  },
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAwWSI/GfnjQeeL3e/Y/6b+/nj7eXWACu2y0ENwWrJyTdIH0E/waehBHcMRSyWJ3H4nsvjkGue/3g8NNn+N3ewvUj6G5Z2uumBVPrbE8RDYanu9wb6/bfK6j9f2yNcTzEU+IamqUT7cnKSWCTRgjpWLXGNwXcqBsdhttkBaS/ZzDaYtVnRa+VT+OhlUHWXirWTSSrZKBlWrSMm/Lg8xosYjiTKRYKQEIgbzKyHkEHla/bs+ZsULuvB3klZXHQ7+ejVZajbVWZIJucDqLQG7u9sQwUUcFZOQo8u54fn3Gp1lcpecuQW3WX8I35DkN/7bCuZlyfoMzPn3nZYQFsSFWPbRwIDAQAB"
 }
