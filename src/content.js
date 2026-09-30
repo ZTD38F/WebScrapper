@@ -210,16 +210,19 @@
       fields.push({ name: uniqueFieldName(name, fields), selector, attribute });
     };
 
-    const title = card.querySelector("h1,h2,h3,h4,[role='heading'],strong,b");
-    if (title && cleanText(title.innerText).length >= 2) add("title", title, "text");
+    let title = card.querySelector("h1,h2,h3,h4,[role='heading'],strong,b");
+    const link = card.matches("a[href]") ? card : card.querySelector("a[href]");
+    const image = card.matches("img[src],img[data-src]") ? card : card.querySelector("img[src],img[data-src],picture img");
 
-    const link = card.querySelector("a[href]");
-    if (link) {
-      if (!title && cleanText(link.innerText).length >= 2) add("title", link, "text");
-      add("url", link, "href");
+    if (!title && image && cleanText(image.alt).length >= 3) {
+      fields.push({ name: "title", selector: relativeSelector(card, image), attribute: "alt" });
+    } else if (title && cleanText(title.innerText).length >= 2) {
+      add("title", title, "text");
+    } else if (link && cleanText(link.innerText).length >= 2 && cleanText(link.innerText).length <= 180) {
+      add("title", link, "text");
     }
 
-    const image = card.querySelector("img[src],img[data-src],picture img");
+    if (link) add("url", link, "href");
     if (image) add("image", image, "src");
 
     const descendants = Array.from(card.querySelectorAll("*")).filter((el) => {
@@ -354,6 +357,13 @@
       images,
       forms: formControls(),
       auto,
+      pagination: findNext(),
+      stats: {
+        detectedRows: auto.count,
+        detectedFields: auto.fields.length,
+        links: links.length,
+        images: images.length
+      },
       htmlSample: repeated?.parent?.outerHTML || document.body?.outerHTML || ""
     };
   }
@@ -365,7 +375,7 @@
     }
 
     const candidates = queryAllDeep("a,button,[role='button']").filter(visible);
-    const rx = /^(next|next page|more|load more|continue|›|»|→|след|далее|nākam)/i;
+    const rx = /^(next|next page|more|load more|show more|continue|›|»|→|след(?:ующая|ующий)?|далее|показать (?:ещ[её]|больше)|nākam(?:ais|ā)?|rādīt vairāk|vairāk)/i;
     for (const el of candidates) {
       const label = cleanText(el.getAttribute("aria-label") || el.innerText || el.textContent);
       if (rx.test(label)) return { selector: selectorFor(el), text: label };
