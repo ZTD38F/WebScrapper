@@ -29,6 +29,14 @@ for (const script of scripts) {
   execFileSync(process.execPath, ["--check", path.join(root, script)], { stdio: "inherit" });
 }
 
+const sidepanel = read("sidepanel/index.html");
+for (const id of ["run","fieldsEditor","previewTable","resultsTable","advancedPanel","serverUrl"]) {
+  if (!sidepanel.includes('id="' + id + '"')) throw new Error("Side panel is missing required control: " + id);
+}
+if (!sidepanel.includes('id="advancedPanel" class="panel hidden"')) {
+  throw new Error("Technical controls must be hidden behind Advanced by default");
+}
+
 if (manifest.manifest_version !== 3) throw new Error("Manifest V3 is required");
 if (!Array.isArray(manifest.host_permissions) || !manifest.host_permissions.includes("<all_urls>")) {
   throw new Error("Expected <all_urls> host permission for generic scraping");
