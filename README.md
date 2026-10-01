@@ -28,6 +28,7 @@ WebScrapper is a clean-room implementation inspired by the *capability class* of
 - no credits
 - no telemetry
 - no artificial row/page quota
+- **Travel Meta**: local federated search across flight, stay, car-rental, and activity providers
 
 `maxPages = 0` means “continue until the target page stops changing / has no next page”, not a paid-plan limit.
 
@@ -70,6 +71,32 @@ You can override every generated selector manually.
 }
 ```
 
+## Travel Meta (local-only)
+
+Travel Meta turns the extension into a browser-local federated travel search layer. It does **not** require the optional WebScrapper server.
+
+The side panel can search multiple provider classes for the same trip:
+
+- flights: Google Flights, Skyscanner, KAYAK, momondo
+- stays: Booking.com, Airbnb, Vrbo, HomeToGo, Holidu, Google Hotels, KAYAK
+- cars: DiscoverCars, Booking Cars, KAYAK Cars, Rentalcars.com
+- activities: GetYourGuide, Viator, Tripadvisor
+
+How it works:
+
+1. WebScrapper builds provider search URLs from one normalized trip query.
+2. It opens a small number of background tabs concurrently.
+3. A declarative in-page extractor finds visible price/result contexts.
+4. The tabs are closed automatically.
+5. Results are normalized and deduplicated locally.
+6. Only prices with a known basis are converted into a comparable group total.
+
+For example, `€120/night`, `€1,500 total stay`, and `€170/person flight` are **not** ranked as if they were the same unit. Unknown price bases remain visible but do not receive a guessed comparable total.
+
+Provider sites can change markup, require sign-in, display consent dialogs, or block automation. Such sources may return zero results and are reported separately instead of being treated as proof that no offer exists.
+
+All Travel Meta datasets are stored in the same local IndexedDB run history as ordinary scraper runs.
+
 ## Optional AI
 
 The scraper itself does not require AI.
@@ -110,6 +137,7 @@ src/
   content.js        page analysis, extraction, pagination, forms
   db.js             local IndexedDB datasets
   ai.js             optional OpenAI-compatible schema inference
+  travel.js         local travel providers, extraction, normalization, ranking
 sidepanel/
   index.html
   app.js
