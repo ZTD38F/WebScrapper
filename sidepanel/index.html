@@ -17,61 +17,6 @@
 
   <main>
     <section>
-      <h2>Travel Meta <span class="badge">local-only</span></h2>
-      <p class="muted">Federated travel search in your own browser. No WebScrapper server is used.</p>
-
-      <div class="grid">
-        <label>Search
-          <select id="travelCategory">
-            <option value="all">Everything</option>
-            <option value="flights">Flights</option>
-            <option value="stays">Stays</option>
-            <option value="cars">Cars</option>
-            <option value="activities">Activities</option>
-          </select>
-        </label>
-        <label>Currency
-          <input id="travelCurrency" value="EUR" maxlength="3">
-        </label>
-      </div>
-
-      <div class="grid">
-        <label>Origin
-          <input id="travelOrigin" placeholder="RIX or Riga">
-        </label>
-        <label>Destination
-          <input id="travelDestination" placeholder="TFS, Tenerife, Tokyo…">
-        </label>
-      </div>
-
-      <div class="grid">
-        <label>Depart / check-in
-          <input id="travelDepart" type="date">
-        </label>
-        <label>Return / check-out
-          <input id="travelReturn" type="date">
-        </label>
-      </div>
-
-      <div class="grid">
-        <label>Adults
-          <input id="travelAdults" type="number" min="1" max="20" value="2">
-        </label>
-        <label>Rooms
-          <input id="travelRooms" type="number" min="1" max="10" value="1">
-        </label>
-      </div>
-
-      <label>Maximum providers
-        <input id="travelMaxProviders" type="number" min="1" max="30" value="18">
-      </label>
-
-      <button id="runTravelMeta" class="primary">Search everywhere locally</button>
-      <p class="muted">Results with a known price basis get a normalized group total and per-person total. Unknown price basis stays unranked rather than being guessed.</p>
-      <div id="travelProviderStatus" class="list"></div>
-    </section>
-
-    <section>
       <h2>Scraper</h2>
       <label>Start URL <input id="startUrl" type="url" placeholder="Blank = current tab"></label>
       <div class="actions">
