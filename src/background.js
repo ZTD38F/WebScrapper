@@ -1,5 +1,6 @@
 import { saveRun, createRun, listRuns, getRun, updateRun, deleteRun } from "./db.js";
 import { inferFieldsWithProvider, planAgentStep } from "./ai.js";
+import { buildTravelSearchPlan, normalizeTravelRows, extractTravelCandidatesInPage } from "./travel.js";
 
 const JOBS_KEY = "ws_jobs_v1";
 const SETTINGS_KEY = "ws_settings_v1";
@@ -540,6 +541,109 @@ async function runAgent(input = {}) {
   };
 }
 
+
+async function mapWithConcurrency(items, limit, worker) {
+  const queue = Array.from(items || []);
+  const results = new Array(queue.length);
+  let cursor = 0;
+
+  async function next() {
+    while (true) {
+      const index = cursor++;
+      if (index >= queue.length) return;
+      results[index] = await worker(queue[index], index);
+    }
+  }
+
+  const workers = Array.from(
+    { length: Math.max(1, Math.min(Number(limit) || 1, queue.length || 1)) },
+    () => next()
+  );
+  await Promise.all(workers);
+  return results;
+}
+
+async function extractTravelTab(tabId, provider) {
+  const executed = await chrome.scripting.executeScript({
+    target: { tabId },
+    func: extractTravelCandidatesInPage,
+    args: [{
+      provider: provider.name,
+      providerId: provider.id,
+      category: provider.category,
+      maxResults: 40
+    }]
+  });
+  return executed?.[0]?.result || { candidates: [], candidateCount: 0 };
+}
+
+async function runTravelMetaSearch(input = {}) {
+  const plan = buildTravelSearchPlan(input);
+  const startedAt = new Date().toISOString();
+  const rawRows = [];
+  const providerStatus = [];
+
+  await mapWithConcurrency(plan.providers, 3, async (provider) => {
+    let tab = null;
+    const status = {
+      id: provider.id,
+      name: provider.name,
+      category: provider.category,
+      url: provider.url,
+      ok: false,
+      candidates: 0,
+      error: null
+    };
+
+    try {
+      tab = await chrome.tabs.create({ url: provider.url, active: false });
+      await waitForTabComplete(tab.id, 25000).catch(() => null);
+      await sleep(2200);
+
+      const extracted = await extractTravelTab(tab.id, provider);
+      const candidates = Array.isArray(extracted?.candidates) ? extracted.candidates : [];
+      status.ok = true;
+      status.candidates = candidates.length;
+      status.pageTitle = extracted?.pageTitle || "";
+      status.finalUrl = extracted?.pageUrl || provider.url;
+      rawRows.push(...candidates);
+    } catch (error) {
+      status.error = error?.message || String(error);
+    } finally {
+      providerStatus.push(status);
+      if (tab?.id) await chrome.tabs.remove(tab.id).catch(() => {});
+    }
+  });
+
+  const rows = normalizeTravelRows(rawRows, plan.query);
+  const endedAt = new Date().toISOString();
+  const id = crypto.randomUUID();
+  const meta = {
+    id,
+    source: "travel-meta-local",
+    createdAt: startedAt,
+    endedAt,
+    startUrl: "",
+    endUrl: "",
+    title: "Travel Meta · " + plan.query.destination,
+    pages: plan.providers.length,
+    stopReason: "completed",
+    category: plan.query.category,
+    query: plan.query,
+    providersAttempted: providerStatus.length,
+    providersSucceeded: providerStatus.filter((x) => x.ok).length,
+    providersWithResults: providerStatus.filter((x) => x.candidates > 0).length
+  };
+
+  await saveRun(meta, rows);
+  return {
+    meta: { ...meta, rowCount: rows.length },
+    query: plan.query,
+    providers: providerStatus.sort((a, b) => a.category.localeCompare(b.category) || a.name.localeCompare(b.name)),
+    rows
+  };
+}
+
 function normalizeServerUrl(value) {
   const raw = String(value || "").trim().replace(/\/+$/, "");
   if (!/^https?:\/\//i.test(raw)) fail("Server URL must be HTTP(S)");
@@ -653,6 +757,8 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         });
       case "WS_RUN_SCRAPER":
         return runScraper(message.config || {}, "manual");
+      case "WS_TRAVEL_META_SEARCH":
+        return runTravelMetaSearch(message.query || {});
       case "WS_RUN_BULK":
         return runBulk(message.config || {}, message.urls || []);
       case "WS_CREATE_RUN":

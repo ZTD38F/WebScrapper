@@ -22,12 +22,15 @@ const scripts = [
   "src/content.js",
   "src/db.js",
   "src/ai.js",
+  "src/travel.js",
   "sidepanel/app.js"
 ];
 
 for (const script of scripts) {
   execFileSync(process.execPath, ["--check", path.join(root, script)], { stdio: "inherit" });
 }
+
+execFileSync(process.execPath, [path.join(root, "tools/travel.test.mjs")], { stdio: "inherit" });
 
 if (manifest.manifest_version !== 3) throw new Error("Manifest V3 is required");
 if (!Array.isArray(manifest.host_permissions) || !manifest.host_permissions.includes("<all_urls>")) {
