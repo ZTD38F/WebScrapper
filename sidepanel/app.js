@@ -223,6 +223,87 @@ async function loadJobs() {
   }
 }
 
+
+function travelQueryFromUi() {
+  return {
+    category: $("travelCategory").value,
+    origin: $("travelOrigin").value.trim(),
+    destination: $("travelDestination").value.trim(),
+    departDate: $("travelDepart").value,
+    returnDate: $("travelReturn").value,
+    adults: Number($("travelAdults").value) || 2,
+    rooms: Number($("travelRooms").value) || 1,
+    currency: ($("travelCurrency").value.trim() || "EUR").toUpperCase(),
+    maxProviders: Number($("travelMaxProviders").value) || 18,
+    locale: navigator.language || "en-US"
+  };
+}
+
+function renderTravelProviderStatus(providers = []) {
+  const root = $("travelProviderStatus");
+  clearNode(root);
+
+  for (const provider of providers) {
+    const card = document.createElement("div");
+    card.className = "job";
+
+    const top = document.createElement("div");
+    top.className = "jobRow";
+
+    const name = document.createElement("strong");
+    name.textContent = provider.name + " · " + provider.category;
+    top.appendChild(name);
+
+    const state = document.createElement("span");
+    state.className = "badge";
+    if (provider.error) state.textContent = "error";
+    else if (provider.candidates > 0) state.textContent = provider.candidates + " found";
+    else state.textContent = provider.ok ? "0 found" : "failed";
+    top.appendChild(state);
+
+    card.appendChild(top);
+
+    const detail = document.createElement("div");
+    detail.className = "muted";
+    detail.textContent = provider.error || provider.pageTitle || provider.finalUrl || provider.url || "";
+    card.appendChild(detail);
+
+    root.appendChild(card);
+  }
+}
+
+$("runTravelMeta").addEventListener("click", async () => {
+  try {
+    const query = travelQueryFromUi();
+    if (!query.destination) throw new Error("Enter a destination");
+    if ((query.category === "all" || query.category === "flights") && !query.origin) {
+      throw new Error("Origin is required when searching flights");
+    }
+
+    setStatus("Travel Meta is searching providers in local browser tabs…");
+    renderTravelProviderStatus([]);
+
+    const result = await rpc("WS_TRAVEL_META_SEARCH", { query });
+    renderTravelProviderStatus(result.providers || []);
+
+    const comparable = (result.rows || []).filter((row) => row.comparableTotal != null).length;
+    setStatus({
+      mode: "local-only",
+      destination: result.query?.destination,
+      providersAttempted: result.meta?.providersAttempted,
+      providersSucceeded: result.meta?.providersSucceeded,
+      providersWithResults: result.meta?.providersWithResults,
+      extractedResults: result.meta?.rowCount,
+      comparableResults: comparable,
+      note: "Unknown price-basis results are kept but not given a comparable total."
+    });
+
+    if (result.meta?.id) await loadRuns(result.meta.id);
+  } catch (error) {
+    setStatus(error.message);
+  }
+});
+
 $("analyze").addEventListener("click", async () => {
   try {
     setStatus("Analyzing current page…");
