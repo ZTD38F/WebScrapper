@@ -93,3 +93,46 @@ th { position: sticky; top: 0; background: Canvas; }
 }
 .jobRow { display: flex; justify-content: space-between; gap: 8px; align-items: center; }
 @media (max-width: 360px) { .grid { grid-template-columns: 1fr; } }
+
+h3 { margin: 16px 0 6px; font-size: 13px; }
+.sectionHeading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+.compact { padding: 6px 8px; white-space: nowrap; }
+.simpleOptions { margin: 14px 0 10px; }
+.fieldList { display: grid; gap: 8px; margin: 10px 0 8px; }
+.fieldCard {
+  border: 1px solid color-mix(in srgb, CanvasText 14%, transparent);
+  border-radius: 8px;
+  padding: 8px;
+  background: Canvas;
+}
+.fieldRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 92px auto;
+  gap: 6px;
+  align-items: center;
+}
+.fieldRow input, .fieldRow select { margin: 0; }
+.iconButton {
+  width: 32px;
+  min-width: 32px;
+  padding: 7px;
+  font-size: 18px;
+  line-height: 1;
+}
+.fieldSelector { margin-top: 6px; }
+.fieldSelector summary, .advanced > summary { cursor: pointer; color: color-mix(in srgb, CanvasText 70%, transparent); }
+.fieldSelector input { margin-top: 6px; }
+.emptyState {
+  margin: 0;
+  padding: 12px;
+  border: 1px dashed color-mix(in srgb, CanvasText 20%, transparent);
+  border-radius: 8px;
+  opacity: .7;
+}
+.advanced { margin-top: 12px; }
+details > summary { padding: 6px 0; }

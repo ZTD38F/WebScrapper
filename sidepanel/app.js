@@ -1,6 +1,7 @@
 const $ = (id) => document.getElementById(id);
 let activeContext = null;
 let currentRun = null;
+let schemaFields = [];
 
 async function rpc(type, payload = {}) {
   const response = await chrome.runtime.sendMessage({ type, ...payload });
@@ -21,6 +22,7 @@ function parseJson(text, label) {
 }
 
 function configFromUi() {
+  syncFieldsToJson();
   const fields = parseJson($("fields").value || "[]", "Fields");
   if (!Array.isArray(fields)) throw new Error("Fields JSON must be an array");
   return {
@@ -51,9 +53,99 @@ function settingsFromUi() {
   };
 }
 
+function normalizeField(field, index) {
+  return {
+    name: String(field?.name || "field_" + (index + 1)),
+    selector: String(field?.selector || ""),
+    attribute: String(field?.attribute || "text")
+  };
+}
+
+function syncFieldsToJson() {
+  $("fields").value = JSON.stringify(schemaFields, null, 2);
+}
+
+function renderFieldEditor() {
+  const root = $("fieldEditor");
+  clearNode(root);
+
+  if (!schemaFields.length) {
+    const empty = document.createElement("p");
+    empty.className = "emptyState";
+    empty.textContent = "No repeated records were detected. Add a field or open Advanced extraction settings.";
+    root.appendChild(empty);
+    syncFieldsToJson();
+    return;
+  }
+
+  schemaFields.forEach((field, index) => {
+    const card = document.createElement("div");
+    card.className = "fieldCard";
+
+    const row = document.createElement("div");
+    row.className = "fieldRow";
+
+    const name = document.createElement("input");
+    name.value = field.name;
+    name.placeholder = "Column name";
+    name.setAttribute("aria-label", "Column name");
+    name.addEventListener("input", () => {
+      schemaFields[index].name = name.value;
+      syncFieldsToJson();
+    });
+
+    const attribute = document.createElement("select");
+    attribute.setAttribute("aria-label", "Value type");
+    for (const [value, label] of [["text", "Text"], ["href", "Link"], ["src", "Image"], ["value", "Value"]]) {
+      const option = document.createElement("option");
+      option.value = value;
+      option.textContent = label;
+      attribute.appendChild(option);
+    }
+    attribute.value = field.attribute;
+    attribute.addEventListener("change", () => {
+      schemaFields[index].attribute = attribute.value;
+      syncFieldsToJson();
+    });
+
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.className = "iconButton danger";
+    remove.textContent = "×";
+    remove.title = "Remove field";
+    remove.setAttribute("aria-label", "Remove " + field.name);
+    remove.addEventListener("click", () => {
+      schemaFields.splice(index, 1);
+      renderFieldEditor();
+    });
+
+    row.append(name, attribute, remove);
+    card.appendChild(row);
+
+    const details = document.createElement("details");
+    details.className = "fieldSelector";
+    const summary = document.createElement("summary");
+    summary.textContent = "Selector";
+    const selector = document.createElement("input");
+    selector.value = field.selector;
+    selector.placeholder = ".price";
+    selector.setAttribute("aria-label", "Selector for " + field.name);
+    selector.addEventListener("input", () => {
+      schemaFields[index].selector = selector.value;
+      syncFieldsToJson();
+    });
+    details.append(summary, selector);
+    card.appendChild(details);
+    root.appendChild(card);
+  });
+
+  syncFieldsToJson();
+}
+
 function setSchema(schema) {
   $("rowSelector").value = schema?.rowSelector || "";
-  $("fields").value = JSON.stringify(schema?.fields || [], null, 2);
+  schemaFields = (schema?.fields || []).map(normalizeField);
+  renderFieldEditor();
 }
 
 function downloadBlob(name, type, content) {
@@ -223,19 +315,55 @@ async function loadJobs() {
   }
 }
 
-$("analyze").addEventListener("click", async () => {
+async function analyzeCurrentPage({ quiet = false } = {}) {
+  $("analyze").disabled = true;
+  $("detectionSummary").textContent = "Understanding the page…";
+  if (!quiet) setStatus("Analyzing current page…");
+
   try {
-    setStatus("Analyzing current page…");
     const snapshot = await rpc("WS_ANALYZE_ACTIVE");
     setSchema(snapshot.auto);
-    setStatus({
-      url: snapshot.url,
-      detectedRows: snapshot.auto?.count || 0,
-      fields: snapshot.auto?.fields || [],
-      forms: snapshot.forms?.length || 0,
-      links: snapshot.links?.length || 0,
-      images: snapshot.images?.length || 0
-    });
+    const count = snapshot.auto?.count || 0;
+    const fieldCount = snapshot.auto?.fields?.length || 0;
+    $("detectionSummary").textContent = count
+      ? "Found " + count + " likely records and " + fieldCount + " suggested fields."
+      : "No repeated list detected. You can add fields manually.";
+    if (!quiet) {
+      setStatus({
+        url: snapshot.url,
+        detectedRows: count,
+        fields: snapshot.auto?.fields || [],
+        forms: snapshot.forms?.length || 0,
+        links: snapshot.links?.length || 0,
+        images: snapshot.images?.length || 0
+      });
+    }
+    return snapshot;
+  } catch (error) {
+    $("detectionSummary").textContent = "Automatic analysis could not run on this page.";
+    throw error;
+  } finally {
+    $("analyze").disabled = false;
+  }
+}
+
+$("analyze").addEventListener("click", () => {
+  analyzeCurrentPage().catch((error) => setStatus(error.message));
+});
+
+$("addField").addEventListener("click", () => {
+  schemaFields.push(normalizeField({}, schemaFields.length));
+  renderFieldEditor();
+  const cards = $("fieldEditor").querySelectorAll(".fieldCard");
+  cards[cards.length - 1]?.querySelector("input")?.focus();
+});
+
+$("fields").addEventListener("change", () => {
+  try {
+    const fields = parseJson($("fields").value || "[]", "Fields");
+    if (!Array.isArray(fields)) throw new Error("Fields JSON must be an array");
+    schemaFields = fields.map(normalizeField);
+    renderFieldEditor();
   } catch (error) {
     setStatus(error.message);
   }
@@ -390,5 +518,8 @@ $("saveSettings").addEventListener("click", async () => {
 });
 
 Promise.all([loadContext(), loadSettings(), loadRuns(), loadJobs()])
-  .then(() => setStatus("Ready."))
+  .then(async () => {
+    await analyzeCurrentPage({ quiet: true });
+    setStatus("Ready to scrape.");
+  })
   .catch((error) => setStatus(error.message));

@@ -17,40 +17,53 @@
 
   <main>
     <section>
-      <h2>Scraper</h2>
-      <label>Start URL <input id="startUrl" type="url" placeholder="Blank = current tab"></label>
+      <div class="sectionHeading">
+        <div>
+          <h2>Scrape this page</h2>
+          <p id="detectionSummary" class="muted">Understanding the page…</p>
+        </div>
+        <button id="analyze" class="secondary compact">Re-analyze</button>
+      </div>
+
       <div class="actions">
-        <button id="analyze">Analyze page</button>
-        <button id="aiSuggest" class="secondary">AI suggest</button>
+        <button id="aiSuggest" class="secondary">Improve suggestions with AI</button>
         <button id="screenshot" class="secondary">Screenshot</button>
       </div>
 
-      <label>Row selector <input id="rowSelector" placeholder=".product-card"></label>
-      <label>Fields JSON
-        <textarea id="fields" rows="9" spellcheck="false">[]</textarea>
-      </label>
+      <h3>Suggested fields</h3>
+      <p class="muted">Rename, remove, or add columns before scraping. Selectors stay out of the way unless you need them.</p>
+      <div id="fieldEditor" class="fieldList"></div>
+      <button id="addField" class="secondary">+ Add field</button>
 
-      <div class="grid">
-        <label>Pagination
+      <div class="grid simpleOptions">
+        <label>Continue through pages
           <select id="pagination">
-            <option value="none">None</option>
-            <option value="next">Next button</option>
+            <option value="none">This page only</option>
+            <option value="next">Next / Load more</option>
             <option value="infinite">Infinite scroll</option>
           </select>
         </label>
-        <label>Max pages
+        <label>Page limit
           <input id="maxPages" type="number" min="0" value="0">
-          <small>0 = continue until the site stops changing</small>
+          <small>0 = stop automatically</small>
         </label>
       </div>
 
-      <label>Next selector <input id="nextSelector" placeholder="Auto-detect when blank"></label>
-      <div class="grid">
-        <label>Wait after action, ms <input id="waitMs" type="number" min="250" value="1200"></label>
-        <label class="check"><input id="includeFrames" type="checkbox"> Include accessible iframes</label>
-      </div>
+      <button id="run" class="primary">Scrape</button>
 
-      <button id="run" class="primary">Run scraper</button>
+      <details class="advanced">
+        <summary>Advanced extraction settings</summary>
+        <label>Start URL <input id="startUrl" type="url" placeholder="Blank = current tab"></label>
+        <label>Row selector <input id="rowSelector" placeholder=".product-card"></label>
+        <label>Next selector <input id="nextSelector" placeholder="Auto-detect when blank"></label>
+        <div class="grid">
+          <label>Wait after action, ms <input id="waitMs" type="number" min="250" value="1200"></label>
+          <label class="check"><input id="includeFrames" type="checkbox"> Include accessible iframes</label>
+        </div>
+        <label>Fields JSON
+          <textarea id="fields" rows="9" spellcheck="false">[]</textarea>
+        </label>
+      </details>
 
       <details>
         <summary>Bulk URLs</summary>
