@@ -44,17 +44,14 @@ No build step or npm install is required to run the extension.
 
 ## Quick use
 
-1. Open a catalogue/search/results page.
-2. Click **Analyze page**.
-3. Inspect the detected row selector and fields.
-4. Choose pagination:
-   - **None** for one rendered page;
-   - **Next button** for normal pagination / Load More;
-   - **Infinite scroll** for feeds.
-5. Click **Run scraper**.
-6. Export the local result as JSON or CSV.
+1. Open a catalogue/search/results page and open WebScrapper.
+2. The side panel analyzes the page automatically and suggests columns.
+3. Rename, remove, or add fields in the visual field editor.
+4. Choose whether to scrape this page, follow Next / Load more, or use infinite scroll.
+5. Click **Scrape**.
+6. Inspect the saved table and export it as JSON or CSV.
 
-You can override every generated selector manually.
+CSS selectors and raw JSON remain available under **Advanced extraction settings**, but are not required for the normal flow.
 
 ## Example schema
 
