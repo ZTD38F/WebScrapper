@@ -5,11 +5,40 @@ const JOBS_KEY = "ws_jobs_v1";
 const SETTINGS_KEY = "ws_settings_v1";
 const ALARM_PREFIX = "ws-job:";
 const runningJobs = new Set();
+const activeRuns = new Map();
+const RUN_PROGRESS_RETENTION_MS = 5 * 60 * 1000;
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 function fail(message) {
   throw new Error(message);
+}
+
+function createRunProgress(requestId, source) {
+  const id = String(requestId || crypto.randomUUID());
+  if (activeRuns.has(id)) fail("A run with this request ID is already active");
+  const progress = {
+    requestId: id, source, status: "running", stage: "Starting", pages: 0, rows: 0,
+    detailCurrent: 0, detailTotal: 0, cancelRequested: false,
+    startedAt: new Date().toISOString(), finishedAt: null, resultId: null, error: null
+  };
+  activeRuns.set(id, progress);
+  return progress;
+}
+
+function updateRunProgress(progress, patch) {
+  Object.assign(progress, patch);
+  return { ...progress };
+}
+
+function finishRunProgress(progress, patch) {
+  updateRunProgress(progress, { ...patch, finishedAt: new Date().toISOString() });
+  setTimeout(() => activeRuns.delete(progress.requestId), RUN_PROGRESS_RETENTION_MS);
+}
+
+function runProgress(requestId) {
+  const progress = activeRuns.get(String(requestId || ""));
+  return progress ? { ...progress } : null;
 }
 
 function canScript(url) {
@@ -165,12 +194,18 @@ async function waitForPageChange(tabId, before, minimumWait) {
   return null;
 }
 
-async function enrichDetailPages(rows, detail) {
-  if (!detail?.enabled || !Array.isArray(detail.fields) || !detail.fields.length) return rows;
+async function enrichDetailPages(rows, detail, hooks = {}) {
+  if (!detail?.enabled || !Array.isArray(detail.fields) || !detail.fields.length) {
+    return { rows, cancelled: false };
+  }
 
+  const isCancelled = typeof hooks.isCancelled === "function" ? hooks.isCancelled : () => false;
+  const onProgress = typeof hooks.onProgress === "function" ? hooks.onProgress : () => {};
   let tab = null;
   try {
     for (let i = 0; i < rows.length; i += 1) {
+      if (isCancelled()) return { rows, cancelled: true };
+      onProgress(i + 1, rows.length);
       const row = rows[i];
       const targetUrl = String(row?.[detail.urlField] || "").trim();
       if (!/^https?:\/\//i.test(targetUrl)) continue;
@@ -202,7 +237,7 @@ async function enrichDetailPages(rows, detail) {
       }
       row._detailUrl = targetUrl;
     }
-    return rows;
+    return { rows, cancelled: isCancelled() };
   } finally {
     if (tab?.id) await chrome.tabs.remove(tab.id).catch(() => {});
   }
@@ -232,20 +267,12 @@ async function runBulk(rawConfig, urlsInput) {
   return { batchId, totalUrls: urls.length, runs };
 }
 
-async function runScraper(rawConfig, source = "manual") {
+async function runScraper(rawConfig, source = "manual", requestIdInput) {
   const config = normalizedConfig(rawConfig);
+  const progress = createRunProgress(requestIdInput, source);
+  const isCancelled = () => progress.cancelRequested;
   let tab;
   let ownsTab = false;
-
-  if (config.startUrl && !config.useCurrentTab) {
-    tab = await chrome.tabs.create({ url: config.startUrl, active: false });
-    ownsTab = true;
-    await waitForTabComplete(tab.id);
-  } else {
-    tab = await activeTab();
-    if (!canScript(tab.url)) fail("Open a normal HTTP(S) page first");
-  }
-
   const runId = crypto.randomUUID();
   const startedAt = new Date().toISOString();
   const seen = new Set();
@@ -256,8 +283,28 @@ async function runScraper(rawConfig, source = "manual") {
   let stopReason = "completed";
 
   try {
+    if (config.startUrl && !config.useCurrentTab) {
+      tab = await chrome.tabs.create({ url: config.startUrl, active: false });
+      ownsTab = true;
+      await waitForTabComplete(tab.id);
+    } else {
+      tab = await activeTab();
+      if (!canScript(tab.url)) fail("Open a normal HTTP(S) page first");
+    }
+
     while (true) {
+      if (isCancelled()) {
+        stopReason = "cancelled";
+        break;
+      }
+
       pageNumber += 1;
+      updateRunProgress(progress, {
+        stage: "Scraping page " + pageNumber,
+        pages: pageNumber,
+        rows: rows.length
+      });
+
       const pageConfig = { ...config, fields: learnedFields };
       const scraped = await scrapeFrames(tab.id, pageConfig, pageNumber);
       learnedFields = scraped.fields;
@@ -270,13 +317,21 @@ async function runScraper(rawConfig, source = "manual") {
         rows.push(row);
         added += 1;
       }
+      updateRunProgress(progress, { pages: pageNumber, rows: rows.length });
 
+      if (isCancelled()) {
+        stopReason = "cancelled";
+        break;
+      }
       if (config.maxPages > 0 && pageNumber >= config.maxPages) {
         stopReason = "max-pages";
         break;
       }
-
       if (config.pagination === "none") break;
+
+      updateRunProgress(progress, {
+        stage: config.pagination === "infinite" ? "Loading more results" : "Opening next page"
+      });
 
       if (config.pagination === "infinite") {
         const scroll = await sendContent(tab.id, { type: "WS_SCROLL_MORE" }, 0);
@@ -297,7 +352,6 @@ async function runScraper(rawConfig, source = "manual") {
           const next = await sendContent(tab.id, { type: "WS_FIND_NEXT" }, 0);
           selector = next?.selector || "";
         }
-
         if (!selector) {
           stopReason = "no-next-button";
           break;
@@ -306,17 +360,32 @@ async function runScraper(rawConfig, source = "manual") {
         await sendContent(tab.id, { type: "WS_CLICK", selector }, 0);
         const changed = await waitForPageChange(tab.id, before, config.waitMs);
         if (!changed) {
-          stopReason = "page-did-not-change";
+          stopReason = isCancelled() ? "cancelled" : "page-did-not-change";
           break;
         }
         await waitForTabComplete(tab.id, 5000).catch(() => null);
       }
     }
 
-    if (config.detail.enabled && config.detail.fields.length) {
-      await enrichDetailPages(rows, config.detail);
+    if (stopReason !== "cancelled" && config.detail.enabled && config.detail.fields.length) {
+      updateRunProgress(progress, {
+        stage: "Enriching detail pages",
+        detailCurrent: 0,
+        detailTotal: rows.length
+      });
+      const enriched = await enrichDetailPages(rows, config.detail, {
+        isCancelled,
+        onProgress: (current, total) => updateRunProgress(progress, {
+          stage: "Enriching detail " + current + " of " + total,
+          detailCurrent: current,
+          detailTotal: total,
+          rows: rows.length
+        })
+      });
+      if (enriched.cancelled) stopReason = "cancelled";
     }
 
+    updateRunProgress(progress, { stage: "Saving results", rows: rows.length });
     const endedAt = new Date().toISOString();
     const currentTab = await chrome.tabs.get(tab.id).catch(() => tab);
     const meta = {
@@ -329,11 +398,28 @@ async function runScraper(rawConfig, source = "manual") {
       title: currentTab?.title || "",
       pages: pageNumber,
       stopReason,
+      cancelled: stopReason === "cancelled",
       fields: learnedFields
     };
 
     await saveRun(meta, rows);
-    return { meta: { ...meta, rowCount: rows.length }, rows };
+    finishRunProgress(progress, {
+      status: stopReason === "cancelled" ? "cancelled" : "completed",
+      stage: stopReason === "cancelled" ? "Cancelled — partial results saved" : "Completed",
+      pages: pageNumber,
+      rows: rows.length,
+      resultId: runId
+    });
+    return { meta: { ...meta, rowCount: rows.length }, rows, requestId: progress.requestId };
+  } catch (error) {
+    finishRunProgress(progress, {
+      status: "failed",
+      stage: "Failed",
+      pages: pageNumber,
+      rows: rows.length,
+      error: error?.message || String(error)
+    });
+    throw error;
   } finally {
     if (ownsTab && tab?.id) {
       await chrome.tabs.remove(tab.id).catch(() => {});
@@ -652,7 +738,18 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
           settings: message.settings
         });
       case "WS_RUN_SCRAPER":
-        return runScraper(message.config || {}, "manual");
+        return runScraper(message.config || {}, "manual", message.requestId);
+      case "WS_GET_RUN_PROGRESS":
+        return runProgress(message.requestId);
+      case "WS_CANCEL_RUN": {
+        const progress = activeRuns.get(String(message.requestId || ""));
+        if (!progress) fail("Active run not found");
+        if (progress.status === "running") {
+          progress.cancelRequested = true;
+          progress.stage = "Cancelling safely…";
+        }
+        return { ...progress };
+      }
       case "WS_RUN_BULK":
         return runBulk(message.config || {}, message.urls || []);
       case "WS_CREATE_RUN":
