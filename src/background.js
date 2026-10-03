@@ -731,6 +731,14 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         const settings = message.settings || await getSettings();
         return inferFieldsWithProvider(snapshot, settings);
       }
+      case "WS_PICK_ELEMENT": {
+        const tab = await activeTab();
+        if (!canScript(tab.url)) fail("Open a normal HTTP(S) page first");
+        return sendContent(tab.id, {
+          type: "WS_PICK_ELEMENT",
+          options: { rowSelector: String(message.rowSelector || "").trim() }
+        }, 0);
+      }
       case "WS_RUN_AGENT":
         return runAgent({
           goal: message.goal,
