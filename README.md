@@ -10,6 +10,7 @@ WebScrapper is a clean-room implementation inspired by the *capability class* of
 
 - automatic repeated-card/list detection
 - local field suggestions
+- safe point-and-click field selection
 - custom CSS row/field schemas
 - text, URL, image and value extraction
 - open Shadow DOM queries
@@ -48,7 +49,7 @@ No build step or npm install is required to run the extension.
 
 1. Open a catalogue/search/results page and open WebScrapper.
 2. The side panel analyzes the page automatically and suggests columns.
-3. Rename, remove, or add fields in the visual field editor.
+3. Rename, remove, or add fields in the visual editor, or click **Pick from page** and choose an element directly.
 4. Choose whether to scrape this page, follow Next / Load more, or use infinite scroll.
 5. Click **Scrape**.
 6. Inspect the saved table and export it as JSON or CSV.
