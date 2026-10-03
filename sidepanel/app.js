@@ -2,6 +2,8 @@ const $ = (id) => document.getElementById(id);
 let activeContext = null;
 let currentRun = null;
 let schemaFields = [];
+let activeRunRequestId = null;
+let progressTimer = null;
 
 async function rpc(type, payload = {}) {
   const response = await chrome.runtime.sendMessage({ type, ...payload });
@@ -382,13 +384,79 @@ $("aiSuggest").addEventListener("click", async () => {
   }
 });
 
+function renderRunProgress(progress, maxPages = 0) {
+  if (!progress) return;
+  $("runProgress").hidden = false;
+  $("progressStage").textContent = progress.stage || "Working…";
+  $("progressCount").textContent = (progress.pages || 0) + " pages · " + (progress.rows || 0) + " rows";
+  $("cancelRun").disabled = progress.status !== "running" || progress.cancelRequested;
+
+  if (maxPages > 0) {
+    $("progressBar").max = maxPages;
+    $("progressBar").value = Math.min(progress.pages || 0, maxPages);
+  } else {
+    $("progressBar").removeAttribute("value");
+  }
+}
+
+function stopProgressPolling() {
+  if (progressTimer) clearInterval(progressTimer);
+  progressTimer = null;
+}
+
+function startProgressPolling(requestId, maxPages) {
+  stopProgressPolling();
+  progressTimer = setInterval(async () => {
+    try {
+      const progress = await rpc("WS_GET_RUN_PROGRESS", { requestId });
+      if (progress) renderRunProgress(progress, maxPages);
+      if (progress && progress.status !== "running") stopProgressPolling();
+    } catch (_) {}
+  }, 350);
+}
+
 $("run").addEventListener("click", async () => {
+  let config;
   try {
-    const config = configFromUi();
-    setStatus("Scraping…");
-    const result = await rpc("WS_RUN_SCRAPER", { config });
+    config = configFromUi();
+  } catch (error) {
+    setStatus(error.message);
+    return;
+  }
+
+  const requestId = crypto.randomUUID();
+  activeRunRequestId = requestId;
+  $("run").disabled = true;
+  $("runProgress").hidden = false;
+  renderRunProgress({ stage: "Starting", pages: 0, rows: 0, status: "running" }, config.maxPages);
+  startProgressPolling(requestId, config.maxPages);
+
+  try {
+    const result = await rpc("WS_RUN_SCRAPER", { config, requestId });
+    renderRunProgress({
+      stage: result.meta.cancelled ? "Cancelled — partial results saved" : "Completed",
+      pages: result.meta.pages,
+      rows: result.meta.rowCount,
+      status: result.meta.cancelled ? "cancelled" : "completed"
+    }, config.maxPages);
     setStatus(result.meta);
     await loadRuns(result.meta.id);
+  } catch (error) {
+    setStatus(error.message);
+    $("progressStage").textContent = "Failed";
+  } finally {
+    stopProgressPolling();
+    activeRunRequestId = null;
+    $("run").disabled = false;
+  }
+});
+
+$("cancelRun").addEventListener("click", async () => {
+  if (!activeRunRequestId) return;
+  try {
+    $("cancelRun").disabled = true;
+    const progress = await rpc("WS_CANCEL_RUN", { requestId: activeRunRequestId });
+    renderRunProgress(progress);
   } catch (error) {
     setStatus(error.message);
   }
