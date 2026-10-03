@@ -18,7 +18,7 @@ Status values: **IMPLEMENTED**, **PARTIAL**, **MISSING**, **INTENTIONALLY_EXCLUD
 | Local persistent results and history | IMPLEMENTED | IndexedDB run storage and results table |
 | JSON / CSV export | IMPLEMENTED | Side-panel export actions |
 | XLSX export | MISSING | Add a dependency-free or vendored, audited exporter |
-| Visual point-and-click selector | MISSING | Build an extension-safe element picker |
+| Visual point-and-click selector | IMPLEMENTED | Isolated-world picker returns a verified declarative selector; no page bridge |
 | Progress and cancellation | IMPLEMENTED | Live stage/page/row progress, explicit cancel, and saved partial results |
 | Screenshots | PARTIAL | Visible-tab capture exists; full-page capture is missing |
 | AI suggestions | IMPLEMENTED | Optional validated declarative schemas via OpenAI-compatible endpoints |
@@ -36,8 +36,8 @@ Status values: **IMPLEMENTED**, **PARTIAL**, **MISSING**, **INTENTIONALLY_EXCLUD
 
 ## Next priorities
 
-1. Point-and-click field selection without page-to-extension trust shortcuts.
-2. XLSX export.
-3. Reusable templates and clearer local/server mode switching.
-4. Full-page capture and opt-in vision support.
-5. Stronger recovery and concurrency tests for long-running server jobs.
+1. XLSX export.
+2. Reusable templates and clearer local/server mode switching.
+3. Full-page capture and opt-in vision support.
+4. Stronger recovery and concurrency tests for long-running server jobs.
+5. Preview picked fields across multiple detected records before a run.
