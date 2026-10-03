@@ -353,6 +353,48 @@ $("analyze").addEventListener("click", () => {
   analyzeCurrentPage().catch((error) => setStatus(error.message));
 });
 
+function uniqueUiFieldName(base) {
+  const stem = String(base || "field").trim() || "field";
+  const used = new Set(schemaFields.map((field) => field.name));
+  if (!used.has(stem)) return stem;
+  let index = 2;
+  while (used.has(stem + "_" + index)) index += 1;
+  return stem + "_" + index;
+}
+
+$("pickField").addEventListener("click", async () => {
+  $("pickField").disabled = true;
+  setStatus("Move the pointer over the page and click the element to add. Press Esc to cancel.");
+  try {
+    const picked = await rpc("WS_PICK_ELEMENT", {
+      rowSelector: $("rowSelector").value.trim()
+    });
+    if (picked?.cancelled) {
+      setStatus("Element picking cancelled.");
+      return;
+    }
+    if (!picked?.compatible) {
+      throw new Error(picked?.error || "The selected element cannot be used with the detected rows.");
+    }
+
+    schemaFields.push(normalizeField({
+      name: uniqueUiFieldName(picked.name),
+      selector: picked.selector,
+      attribute: picked.attribute
+    }, schemaFields.length));
+    renderFieldEditor();
+    setStatus({
+      addedField: schemaFields.at(-1),
+      sample: picked.sample || "",
+      tag: picked.tag || ""
+    });
+  } catch (error) {
+    setStatus(error.message);
+  } finally {
+    $("pickField").disabled = false;
+  }
+});
+
 $("addField").addEventListener("click", () => {
   schemaFields.push(normalizeField({}, schemaFields.length));
   renderFieldEditor();

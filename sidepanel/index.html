@@ -31,9 +31,12 @@
       </div>
 
       <h3>Suggested fields</h3>
-      <p class="muted">Rename, remove, or add columns before scraping. Selectors stay out of the way unless you need them.</p>
+      <p class="muted">Rename, remove, or add columns before scraping. Pick a page element visually—no selector knowledge required.</p>
       <div id="fieldEditor" class="fieldList"></div>
-      <button id="addField" class="secondary">+ Add field</button>
+      <div class="actions fieldActions">
+        <button id="pickField" class="secondary">◎ Pick from page</button>
+        <button id="addField" class="secondary">+ Add manually</button>
+      </div>
 
       <div class="grid simpleOptions">
         <label>Continue through pages

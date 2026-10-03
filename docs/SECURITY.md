@@ -25,6 +25,12 @@ An optional provider API key is stored in `chrome.storage.local` because the ext
 
 WebScrapper has no `cookies` permission and no `history` permission.
 
+## Visual picker
+
+The point-and-click picker runs only in the extension content script's isolated world. It captures one explicit user click, prevents that click from activating the page, generates and verifies a CSS selector, returns a small declarative field description, and removes its listeners and overlay immediately.
+
+It does not use `window.postMessage`, inject page-world code, read cookies, or execute page-provided JavaScript.
+
 ## Permissions
 
 - `<all_urls>`: required to be a generic scraper.

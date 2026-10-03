@@ -4,6 +4,6 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "check": "node tools/validate.mjs && node tools/progress-contract.test.mjs"
+    "check": "node tools/validate.mjs && node tools/progress-contract.test.mjs && node tools/picker-contract.test.mjs"
   }
 }

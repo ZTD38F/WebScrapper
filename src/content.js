@@ -464,6 +464,207 @@
     return { before, after, changed: after > before };
   }
 
+  let cancelActivePicker = null;
+
+  function suggestedFieldName(el, attribute) {
+    if (attribute === "href") return "url";
+    if (attribute === "src") return "image";
+    const hint = cleanText(
+      el.getAttribute("aria-label") ||
+      el.getAttribute("name") ||
+      el.getAttribute("data-testid") ||
+      el.id ||
+      el.tagName.toLowerCase()
+    )
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "_")
+      .replace(/^_+|_+$/g, "")
+      .slice(0, 48);
+    return hint || "field";
+  }
+
+  function pickedAttribute(el) {
+    if (el instanceof HTMLImageElement) return "src";
+    if (el instanceof HTMLAnchorElement && el.hasAttribute("href")) return "href";
+    if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement || el instanceof HTMLSelectElement) {
+      return "value";
+    }
+    return "text";
+  }
+
+  function pickElement(options = {}) {
+    if (cancelActivePicker) cancelActivePicker();
+
+    return new Promise((resolve) => {
+      const rowSelector = String(options.rowSelector || "").trim();
+      const overlay = document.createElement("div");
+      const banner = document.createElement("div");
+      let current = null;
+      let finished = false;
+
+      overlay.setAttribute("data-webscrapper-picker-ui", "highlight");
+      Object.assign(overlay.style, {
+        position: "fixed",
+        display: "none",
+        pointerEvents: "none",
+        zIndex: "2147483646",
+        border: "2px solid #6c5ce7",
+        borderRadius: "4px",
+        background: "rgba(108, 92, 231, 0.12)",
+        boxShadow: "0 0 0 1px rgba(255,255,255,.8)"
+      });
+
+      banner.setAttribute("data-webscrapper-picker-ui", "instructions");
+      banner.textContent = "WebScrapper: click an element to add it · Esc to cancel";
+      Object.assign(banner.style, {
+        position: "fixed",
+        top: "12px",
+        left: "50%",
+        transform: "translateX(-50%)",
+        pointerEvents: "none",
+        zIndex: "2147483647",
+        maxWidth: "calc(100vw - 24px)",
+        padding: "9px 13px",
+        borderRadius: "8px",
+        background: "#17171c",
+        color: "#fff",
+        font: "600 13px/1.3 system-ui, sans-serif",
+        boxShadow: "0 6px 24px rgba(0,0,0,.28)"
+      });
+
+      document.documentElement.append(overlay, banner);
+
+      const targetFromEvent = (event) => {
+        const path = typeof event.composedPath === "function" ? event.composedPath() : [event.target];
+        return path.find((node) =>
+          node instanceof Element &&
+          node !== overlay &&
+          node !== banner &&
+          !node.hasAttribute("data-webscrapper-picker-ui")
+        ) || null;
+      };
+
+      const positionOverlay = (target) => {
+        if (!(target instanceof Element)) {
+          overlay.style.display = "none";
+          return;
+        }
+        const rect = target.getBoundingClientRect();
+        if (!rect.width || !rect.height) {
+          overlay.style.display = "none";
+          return;
+        }
+        overlay.style.display = "block";
+        overlay.style.left = rect.left + "px";
+        overlay.style.top = rect.top + "px";
+        overlay.style.width = rect.width + "px";
+        overlay.style.height = rect.height + "px";
+      };
+
+      const cleanup = () => {
+        window.removeEventListener("pointermove", onPointerMove, true);
+        window.removeEventListener("click", onClick, true);
+        window.removeEventListener("keydown", onKeyDown, true);
+        window.removeEventListener("scroll", onScroll, true);
+        overlay.remove();
+        banner.remove();
+        if (cancelActivePicker === cancel) cancelActivePicker = null;
+      };
+
+      const finish = (result) => {
+        if (finished) return;
+        finished = true;
+        cleanup();
+        resolve(result);
+      };
+
+      const cancel = () => finish({ cancelled: true });
+
+      const onPointerMove = (event) => {
+        current = targetFromEvent(event);
+        positionOverlay(current);
+      };
+
+      const onScroll = () => positionOverlay(current);
+
+      const onKeyDown = (event) => {
+        if (event.key !== "Escape") return;
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        cancel();
+      };
+
+      const onClick = (event) => {
+        const target = targetFromEvent(event);
+        if (!target) return;
+        event.preventDefault();
+        event.stopPropagation();
+        event.stopImmediatePropagation();
+
+        let root = document.body;
+        let compatible = true;
+        if (rowSelector) {
+          compatible = false;
+          let cursor = target;
+          while (cursor && cursor instanceof Element) {
+            try {
+              if (cursor.matches(rowSelector)) {
+                root = cursor;
+                compatible = true;
+                break;
+              }
+            } catch (_) {
+              compatible = false;
+              break;
+            }
+            cursor = cursor.parentElement;
+          }
+        }
+
+        if (!compatible) {
+          finish({
+            cancelled: false,
+            compatible: false,
+            error: "Selected element is outside the detected record. Pick an element inside one of the repeated rows."
+          });
+          return;
+        }
+
+        const selector = relativeSelector(root, target);
+        let verified = false;
+        try {
+          verified = selector === ":scope" ? root === target : root.querySelector(selector) === target;
+        } catch (_) {}
+
+        if (!selector || !verified) {
+          finish({
+            cancelled: false,
+            compatible: false,
+            error: "A stable selector could not be verified for this element."
+          });
+          return;
+        }
+
+        const attribute = pickedAttribute(target);
+        finish({
+          cancelled: false,
+          compatible: true,
+          selector,
+          attribute,
+          name: suggestedFieldName(target, attribute),
+          sample: cleanText(elementValue(target, attribute)).slice(0, 240),
+          tag: target.tagName.toLowerCase()
+        });
+      };
+
+      cancelActivePicker = cancel;
+      window.addEventListener("pointermove", onPointerMove, true);
+      window.addEventListener("click", onClick, true);
+      window.addEventListener("keydown", onKeyDown, true);
+      window.addEventListener("scroll", onScroll, true);
+    });
+  }
+
   function meta() {
     const body = cleanText(document.body?.innerText || "");
     return {
@@ -481,6 +682,8 @@
           return { ok: true, url: location.href, isTop: window === top };
         case "WS_ANALYZE":
           return pageSnapshot();
+        case "WS_PICK_ELEMENT":
+          return pickElement(message.options || {});
         case "WS_SCRAPE":
           return scrape(message.config || {});
         case "WS_FIND_NEXT":
