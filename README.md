@@ -18,6 +18,8 @@ WebScrapper is a clean-room implementation inspired by the *capability class* of
 - multi-page pagination
 - infinite-scroll scraping
 - local IndexedDB datasets
+- live page/row progress with explicit cancellation
+- cancelled runs preserve their collected rows as partial results
 - JSON and CSV export
 - visible-tab screenshots
 - declarative form filling

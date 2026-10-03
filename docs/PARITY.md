@@ -19,7 +19,7 @@ Status values: **IMPLEMENTED**, **PARTIAL**, **MISSING**, **INTENTIONALLY_EXCLUD
 | JSON / CSV export | IMPLEMENTED | Side-panel export actions |
 | XLSX export | MISSING | Add a dependency-free or vendored, audited exporter |
 | Visual point-and-click selector | MISSING | Build an extension-safe element picker |
-| Progress and cancellation | PARTIAL | Status exists; live stage/page/row progress and cancel are missing |
+| Progress and cancellation | IMPLEMENTED | Live stage/page/row progress, explicit cancel, and saved partial results |
 | Screenshots | PARTIAL | Visible-tab capture exists; full-page capture is missing |
 | AI suggestions | IMPLEMENTED | Optional validated declarative schemas via OpenAI-compatible endpoints |
 | Vision-assisted understanding | MISSING | Must be explicit and provider-declared |
@@ -36,8 +36,8 @@ Status values: **IMPLEMENTED**, **PARTIAL**, **MISSING**, **INTENTIONALLY_EXCLUD
 
 ## Next priorities
 
-1. Live progress with explicit cancellation and truthful page/row counts.
-2. Point-and-click field selection without page-to-extension trust shortcuts.
-3. XLSX export.
-4. Reusable templates and clearer local/server mode switching.
-5. Full-page capture and opt-in vision support.
+1. Point-and-click field selection without page-to-extension trust shortcuts.
+2. XLSX export.
+3. Reusable templates and clearer local/server mode switching.
+4. Full-page capture and opt-in vision support.
+5. Stronger recovery and concurrency tests for long-running server jobs.

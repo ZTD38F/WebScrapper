@@ -50,6 +50,14 @@
       </div>
 
       <button id="run" class="primary">Scrape</button>
+      <div id="runProgress" class="runProgress" hidden aria-live="polite">
+        <div class="progressHeader">
+          <span id="progressStage">Starting…</span>
+          <strong id="progressCount">0 pages · 0 rows</strong>
+        </div>
+        <progress id="progressBar"></progress>
+        <button id="cancelRun" class="danger">Cancel and save partial results</button>
+      </div>
 
       <details class="advanced">
         <summary>Advanced extraction settings</summary>
