@@ -136,3 +136,22 @@ h3 { margin: 16px 0 6px; font-size: 13px; }
 }
 .advanced { margin-top: 12px; }
 details > summary { padding: 6px 0; }
+
+.runProgress {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+  padding: 10px;
+  border: 1px solid color-mix(in srgb, AccentColor 45%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, AccentColor 7%, Canvas);
+}
+.runProgress[hidden] { display: none; }
+.progressHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: baseline;
+}
+.progressHeader strong { white-space: nowrap; font-size: 11px; }
+.runProgress progress { width: 100%; height: 8px; }
